@@ -1,0 +1,28 @@
+/* Importando uma fonte bonita e limpa (Inter) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+
+html, body {
+    font-family: 'Inter', sans-serif;
+    scroll-behavior: smooth;
+}
+
+/* Tira aquele quadrado azul/cinza chato que aparece quando você clica em botões no celular */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Oculta a barra de rolagem para dar um visual 100% App, mas mantém a rolagem funcionando */
+::-webkit-scrollbar {
+    width: 0px;
+    background: transparent; 
+}
+
+/* Garante que o input de número não fique com aquelas setinhas feias de aumentar/diminuir */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+}
+input[type=number] {
+    -moz-appearance: textfield;
+}

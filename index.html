@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MiauFit Web</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    
+    <!-- Tailwind CSS (Visual) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { brand: { 50: '#fdf3f4', 100: '#fce4e7', 500: '#f43f5e', 600: '#e11d48', 900: '#881337' } } } }
+        }
+    </script>
+    
+    <!-- Ícones -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    
+    <!-- Seus estilos customizados -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased pb-20 md:pb-0 md:pl-64">
+    
+    <!-- Navegação Mobile (Inferior) -->
+    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-3 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button onclick="navigate('home')" class="flex flex-col items-center p-2 text-gray-400 hover:text-brand-600 focus:text-brand-600"><i class="ri-home-line text-2xl"></i><span class="text-[10px] mt-1 font-medium">Início</span></button>
+        <button onclick="navigate('history')" class="flex flex-col items-center p-2 text-gray-400 hover:text-brand-600 focus:text-brand-600"><i class="ri-history-line text-2xl"></i><span class="text-[10px] mt-1 font-medium">Histórico</span></button>
+    </nav>
+
+    <!-- Navegação Desktop (Lateral) -->
+    <nav class="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 p-6 z-50">
+        <div class="text-2xl font-bold text-brand-600 mb-12">MiauFit</div>
+        <div class="flex flex-col gap-4">
+            <button onclick="navigate('home')" class="flex items-center gap-4 p-3 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-brand-600 text-left"><i class="ri-home-line text-xl"></i> Início</button>
+            <button onclick="navigate('history')" class="flex items-center gap-4 p-3 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-brand-600 text-left"><i class="ri-history-line text-xl"></i> Histórico</button>
+        </div>
+    </nav>
+
+    <!-- Conteúdo Principal Dinâmico -->
+    <main id="app-content" class="p-4 md:p-8 max-w-4xl mx-auto min-h-screen">
+        <!-- O JS injetará as telas aqui -->
+    </main>
+
+    <!-- Script Principal (Módulo) -->
+    <script type="module" src="app.js"></script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW registrado!', reg.scope))
+        .catch(err => console.error('Erro ao registrar SW', err));
+    });
+  }
+</script>
+</body>
+</html>
