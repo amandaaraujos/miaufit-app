@@ -4,19 +4,16 @@ import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js'
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-// Quando você mudar as cargas no cartilha.js no futuro, é só mudar esse número (ex: '2.1')
 const APP_VERSION = '2.1'; 
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
 
 if (currentVersion !== APP_VERSION || !localStorage.getItem('customWorkouts')) {
-    // Puxa a cartilha nova e atualiza o localStorage
     CUSTOM_WORKOUTS = JSON.parse(JSON.stringify(WORKOUTS));
     localStorage.setItem('customWorkouts', JSON.stringify(CUSTOM_WORKOUTS));
     localStorage.setItem('appVersion', APP_VERSION);
 } else {
-    // Mantém as edições que você fez pelo próprio aplicativo
     CUSTOM_WORKOUTS = JSON.parse(localStorage.getItem('customWorkouts'));
 }
 // ---------------------------------
@@ -27,34 +24,26 @@ let currentSet = 1;
 let sessionLog = [];
 let exerciseLog = []; 
 let restInterval = null;
-
-// --- NOVO: Variável global para o descanso de transição ---
 let transitionTimerInterval = null;
 
-window.navigate = function(page, data = null) {
+// --- ATUALIZADO: Navigate agora suporta funções assíncronas (async/await) ---
+window.navigate = async function(page, data = null) {
     clearInterval(restInterval);
     
-    // --- NOVO: Limpa o timer de transição e esconde o banner ao sair do treino ---
     clearInterval(transitionTimerInterval);
     const banner = document.getElementById('rest-banner');
     if (banner) banner.style.display = 'none';
 
-    if (page === 'home') renderHome();
+    if (page === 'home') await renderHome();
     if (page === 'configure') renderConfigure(data);
-    if (page === 'history') renderHistory();
+    if (page === 'history') await renderHistory();
     if (page === 'session') startWorkoutSession(data);
 };
 
-// --- NOVO: Lógica dinâmica de Semanas e Fases ---
-function getCurrentWeekInfo() {
-    const startDateString = localStorage.getItem('miaufit_start_date');
-    if (!startDateString) {
-        return { week: 1, type: "Aguardando primeiro treino..." };
-    }
-    const startDate = new Date(startDateString);
-    const diffTime = new Date().getTime() - startDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const currentWeek = diffDays < 0 ? 1 : Math.floor(diffDays / 7) + 1;
+// --- NOVO: Cálculo de semana baseado APENAS no total de treinos concluídos ---
+function getCurrentWeekInfo(totalWorkouts) {
+    // 7 treinos = 1 semana. (Ex: 1 a 7 treinos = Sem 1; 8 a 14 = Sem 2)
+    const currentWeek = Math.floor((totalWorkouts - 1) / 7) + 1;
     
     let phase = "";
     if (currentWeek <= 2) phase = "Adaptação (RIR 3)";
@@ -71,9 +60,41 @@ function getCurrentWeekInfo() {
     return { week: currentWeek, type: phase };
 }
 
-function renderHome() {
-    // --- ATUALIZADO: Agora busca a semana real em vez de ser estático ---
-    const currentWeekInfo = getCurrentWeekInfo(); 
+// --- ATUALIZADO: RenderHome agora busca o histórico primeiro ---
+async function renderHome() {
+    app.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-32 space-y-4 max-w-md mx-auto">
+            <i class="ri-loader-4-line text-4xl text-brand-500 animate-spin"></i>
+            <h2 class="text-gray-500 font-medium">Carregando seu progresso...</h2>
+        </div>`;
+
+    const history = await getHistoryLogs();
+    const totalWorkouts = history.length;
+    
+    let weekDisplayHtml = "";
+    
+    if (totalWorkouts === 0) {
+        weekDisplayHtml = `
+            <p class="text-lg font-bold text-gray-900">Nenhum treino salvo</p>
+            <p class="text-sm text-gray-600">Faça o primeiro treino para iniciar a Semana 1!</p>
+        `;
+    } else {
+        const currentWeekInfo = getCurrentWeekInfo(totalWorkouts);
+        const treinosNaSemanaAtual = ((totalWorkouts - 1) % 7) + 1; // Para mostrar ex: "3/7 treinos"
+        
+        weekDisplayHtml = `
+            <div class="flex justify-between items-end">
+                <div>
+                    <p class="text-lg font-bold text-gray-900">Semana ${currentWeekInfo.week}</p>
+                    <p class="text-sm text-gray-600">${currentWeekInfo.type}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs font-bold text-brand-600 bg-brand-100 px-2 py-1 rounded-lg inline-block mb-1">${treinosNaSemanaAtual}/7</p>
+                    <p class="text-[10px] text-gray-400 uppercase tracking-wide">treinos</p>
+                </div>
+            </div>
+        `;
+    }
     
     app.innerHTML = `
         <div class="max-w-md mx-auto space-y-6 pb-24 px-2">
@@ -82,12 +103,9 @@ function renderHome() {
                 <p class="text-gray-500 mt-1 text-sm">Pronta para o treino de hoje?</p>
             </header>
             
-            <div class="bg-gradient-to-r from-brand-50 to-white p-5 rounded-3xl shadow-sm border border-brand-100 flex justify-between items-center">
-                <div>
-                    <p class="text-[11px] font-bold text-brand-600 tracking-wider uppercase mb-1">Seu Progresso</p>
-                    <p class="text-lg font-bold text-gray-900">Semana ${currentWeekInfo.week}</p>
-                    <p class="text-sm text-gray-600">${currentWeekInfo.type}</p>
-                </div>
+            <div class="bg-gradient-to-r from-brand-50 to-white p-5 rounded-3xl shadow-sm border border-brand-100">
+                <p class="text-[11px] font-bold text-brand-600 tracking-wider uppercase mb-2">Seu Progresso</p>
+                ${weekDisplayHtml}
             </div>
 
             <h2 class="text-xl font-bold text-gray-900 mt-8 mb-4">Escolha seu treino</h2>
@@ -346,7 +364,6 @@ function renderExerciseSession() {
             currentExerciseIndex++;
             currentSet = 1;
 
-            // --- NOVO: Aciona o descanso de 90s apenas se houver mais exercícios pela frente ---
             if (currentExerciseIndex < currentWorkout.exercises.length) {
                 iniciarDescansoEntreExercicios();
             }
@@ -402,6 +419,7 @@ function formatTime(sec) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// --- ATUALIZADO: Removida a lógica de salvar a data estática inicial ---
 async function finishWorkout() {
     app.innerHTML = `
         <div class="flex flex-col items-center justify-center py-40 px-4 text-center space-y-4 max-w-md mx-auto">
@@ -413,12 +431,6 @@ async function finishWorkout() {
         </div>`;
     
     localStorage.setItem('customWorkouts', JSON.stringify(CUSTOM_WORKOUTS));
-    
-    // --- NOVO: Grava a data do primeiro dia de treino se ainda não existir ---
-    if (!localStorage.getItem('miaufit_start_date')) {
-        localStorage.setItem('miaufit_start_date', new Date().toISOString());
-    }
-
     await saveSessionLog(currentWorkout.id, sessionLog);
     navigate('home');
 }
@@ -472,7 +484,7 @@ async function renderHistory() {
 }
 
 window.deleteLogHandler = async function(id) {
-    if (confirm("Quer mesmo apagar este treino do histórico?")) {
+    if (confirm("Quer mesmo apagar este treino do histórico? A contagem de semanas será reajustada.")) {
         const success = await deleteSessionLog(id);
         if (success) {
             renderHistory();
@@ -482,7 +494,6 @@ window.deleteLogHandler = async function(id) {
     }
 };
 
-// --- NOVO: Função Global do Timer de Descanso de Transição ---
 function iniciarDescansoEntreExercicios() {
     clearInterval(transitionTimerInterval);
     
@@ -493,7 +504,6 @@ function iniciarDescansoEntreExercicios() {
     if (banner) banner.style.display = 'block';
     if (displayTempo) displayTempo.innerText = tempoRestante;
     
-    // Vibração suave (se suportado pelo aparelho)
     if ('vibrate' in navigator) navigator.vibrate(50);
 
     transitionTimerInterval = setInterval(() => {
@@ -503,7 +513,6 @@ function iniciarDescansoEntreExercicios() {
         if (tempoRestante <= 0) {
             clearInterval(transitionTimerInterval);
             if (banner) banner.style.display = 'none';
-            // Alerta tátil ao finalizar
             if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]); 
         }
     }, 1000);
