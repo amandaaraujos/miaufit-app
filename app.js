@@ -4,13 +4,34 @@ import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js'
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.1'; 
+const APP_VERSION = '2.2'; // Atualizado para garantir a injeção do cardio
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
 
 if (currentVersion !== APP_VERSION || !localStorage.getItem('customWorkouts')) {
     CUSTOM_WORKOUTS = JSON.parse(JSON.stringify(WORKOUTS));
+    
+    // --- NOVO: Injeta o treino de Cardio automaticamente se não existir ---
+    if (!CUSTOM_WORKOUTS.find(w => w.id === 'treino_cardio')) {
+        CUSTOM_WORKOUTS.push({
+            id: 'treino_cardio',
+            name: '🏃‍♀️ Cardio',
+            focus: 'Condicionamento físico e resistência cardiovascular',
+            exercises: [
+                {
+                    id: 'cardio_1',
+                    name: 'Esteira',
+                    isCardio: true,
+                    sets: 1, // 1 sessão única
+                    reps: 30, // 30 minutos
+                    load: 5.5, // 5.5 km/h
+                    rest: 0
+                }
+            ]
+        });
+    }
+    
     localStorage.setItem('customWorkouts', JSON.stringify(CUSTOM_WORKOUTS));
     localStorage.setItem('appVersion', APP_VERSION);
 } else {
@@ -26,7 +47,6 @@ let exerciseLog = [];
 let restInterval = null;
 let transitionTimerInterval = null;
 
-// --- ATUALIZADO: Navigate agora suporta funções assíncronas (async/await) ---
 window.navigate = async function(page, data = null) {
     clearInterval(restInterval);
     
@@ -40,9 +60,7 @@ window.navigate = async function(page, data = null) {
     if (page === 'session') startWorkoutSession(data);
 };
 
-// --- NOVO: Cálculo de semana baseado APENAS no total de treinos concluídos ---
 function getCurrentWeekInfo(totalWorkouts) {
-    // 7 treinos = 1 semana. (Ex: 1 a 7 treinos = Sem 1; 8 a 14 = Sem 2)
     const currentWeek = Math.floor((totalWorkouts - 1) / 7) + 1;
     
     let phase = "";
@@ -60,7 +78,6 @@ function getCurrentWeekInfo(totalWorkouts) {
     return { week: currentWeek, type: phase };
 }
 
-// --- ATUALIZADO: RenderHome agora busca o histórico primeiro ---
 async function renderHome() {
     app.innerHTML = `
         <div class="flex flex-col items-center justify-center py-32 space-y-4 max-w-md mx-auto">
@@ -80,7 +97,7 @@ async function renderHome() {
         `;
     } else {
         const currentWeekInfo = getCurrentWeekInfo(totalWorkouts);
-        const treinosNaSemanaAtual = ((totalWorkouts - 1) % 7) + 1; // Para mostrar ex: "3/7 treinos"
+        const treinosNaSemanaAtual = ((totalWorkouts - 1) % 7) + 1;
         
         weekDisplayHtml = `
             <div class="flex justify-between items-end">
@@ -150,13 +167,17 @@ window.addExercise = function(workoutId) {
     const workout = CUSTOM_WORKOUTS.find(w => w.id === workoutId);
     saveConfigToMemory(workout);
     
+    // --- NOVO: Se estiver adicionando no treino de cardio, o novo exercício herda o formato ---
+    const isCardioWorkout = workoutId === 'treino_cardio';
+    
     workout.exercises.push({
         id: 'novo_' + Date.now(),
-        name: "Novo exercício",
-        sets: 3,
-        reps: 12,
-        load: 0,
-        rest: 60
+        name: isCardioWorkout ? "Novo Cardio (ex: Bicicleta)" : "Novo exercício",
+        isCardio: isCardioWorkout,
+        sets: isCardioWorkout ? 1 : 3,
+        reps: isCardioWorkout ? 15 : 12,
+        load: isCardioWorkout ? 5 : 0,
+        rest: isCardioWorkout ? 0 : 60
     });
     renderConfigure(workoutId);
 };
@@ -200,12 +221,12 @@ function renderConfigure(workoutId) {
                                 <input type="number" id="cfg-sets-${ex.id}" value="${ex.sets}" class="w-full bg-transparent font-black text-gray-900 text-lg outline-none text-center">
                             </div>
                             <div class="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex flex-col items-center">
-                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">Reps Meta</label>
+                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">${ex.isCardio ? 'Minutos' : 'Reps Meta'}</label>
                                 <input type="number" id="cfg-reps-${ex.id}" value="${ex.reps}" class="w-full bg-transparent font-black text-gray-900 text-lg outline-none text-center">
                             </div>
                             <div class="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex flex-col items-center">
-                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">Carga (kg)</label>
-                                <input type="number" id="cfg-load-${ex.id}" value="${ex.load || 0}" class="w-full bg-transparent font-black text-brand-600 text-lg outline-none text-center">
+                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">${ex.isCardio ? 'km/h' : 'Carga (kg)'}</label>
+                                <input type="number" step="0.1" id="cfg-load-${ex.id}" value="${ex.load || 0}" class="w-full bg-transparent font-black text-brand-600 text-lg outline-none text-center">
                             </div>
                             <div class="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex flex-col items-center">
                                 <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">Pausa (s)</label>
@@ -280,7 +301,7 @@ function renderExerciseSession() {
                     <div class="inline-flex items-center gap-2 mt-2 bg-brand-50 px-3 py-1.5 rounded-xl">
                         <span class="text-brand-700 font-bold text-sm">Série ${currentSet} de ${ex.sets}</span>
                         <span class="w-1 h-1 bg-brand-300 rounded-full"></span>
-                        <span class="text-brand-600 text-sm font-medium">Meta: ${ex.reps} reps</span>
+                        <span class="text-brand-600 text-sm font-medium">Meta: ${ex.reps} ${ex.isCardio ? 'min' : 'reps'}</span>
                     </div>
                 </div>
                 <button id="skip-btn" class="text-gray-500 text-sm font-semibold hover:text-gray-800 bg-gray-100 px-4 py-2 rounded-xl transition-colors active:scale-95">Pular</button>
@@ -295,11 +316,11 @@ function renderExerciseSession() {
             <div id="inputs-area" class="space-y-4 mt-8">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center">
-                        <label class="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">Carga (kg)</label>
-                        <input type="number" id="input-load" value="${ex.load || 0}" class="w-full bg-transparent text-4xl font-black text-brand-600 outline-none text-center" placeholder="0">
+                        <label class="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">${ex.isCardio ? 'km/h' : 'Carga (kg)'}</label>
+                        <input type="number" step="0.1" id="input-load" value="${ex.load || 0}" class="w-full bg-transparent text-4xl font-black text-brand-600 outline-none text-center" placeholder="0">
                     </div>
                     <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center">
-                        <label class="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">Repetições</label>
+                        <label class="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">${ex.isCardio ? 'Minutos' : 'Repetições'}</label>
                         <input type="number" id="input-reps" value="${ex.reps}" class="w-full bg-transparent text-4xl font-black text-gray-900 outline-none text-center" placeholder="0">
                     </div>
                 </div>
@@ -317,7 +338,7 @@ function renderExerciseSession() {
                 </div>
                 
                 <button id="save-set-btn" class="w-full py-4.5 mt-6 rounded-2xl font-extrabold text-lg text-white bg-brand-600 shadow-lg shadow-brand-200 hover:bg-brand-700 active:scale-[0.98] transition-transform flex justify-center items-center gap-2">
-                    Registrar série <i class="ri-check-line text-2xl"></i>
+                    Registrar ${ex.isCardio ? 'cardio' : 'série'} <i class="ri-check-line text-2xl"></i>
                 </button>
             </div>
         </div>
@@ -345,15 +366,24 @@ function renderExerciseSession() {
     document.getElementById('save-set-btn').addEventListener('click', () => {
         const load = document.getElementById('input-load').value;
         const reps = document.getElementById('input-reps').value;
-        if (!load || !reps) return alert("Por favor, preencha a carga e as repetições. 💪");
         
-        exerciseLog.push({ set: currentSet, load: Number(load), reps: Number(reps), rir: Number(selectedRir) });
+        if (!load || !reps) {
+            return alert(`Por favor, preencha ${ex.isCardio ? 'a velocidade e os minutos' : 'a carga e as repetições'}. 💪`);
+        }
+        
+        exerciseLog.push({ 
+            set: currentSet, 
+            load: Number(load), 
+            reps: Number(reps), 
+            rir: Number(selectedRir),
+            isCardio: ex.isCardio 
+        });
         
         if (currentSet < ex.sets) {
             currentSet++;
             startRest(ex.rest);
         } else {
-            sessionLog.push({ exerciseId: ex.id, name: ex.name, log: exerciseLog });
+            sessionLog.push({ exerciseId: ex.id, name: ex.name, log: exerciseLog, isCardio: ex.isCardio });
             
             const exIndex = currentWorkout.exercises.findIndex(e => e.id === ex.id);
             if(exIndex !== -1) {
@@ -419,7 +449,6 @@ function formatTime(sec) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// --- ATUALIZADO: Removida a lógica de salvar a data estática inicial ---
 async function finishWorkout() {
     app.innerHTML = `
         <div class="flex flex-col items-center justify-center py-40 px-4 text-center space-y-4 max-w-md mx-auto">
@@ -472,7 +501,7 @@ async function renderHistory() {
                                 <div class="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-50">
                                     <span class="font-bold text-gray-800 text-sm block mb-2">${ex.name}</span> 
                                     ${ex.skipped ? '<span class="text-gray-400 text-xs font-medium bg-gray-100 px-2 py-1 rounded-md">Pulado</span>' : 
-                                      '<div class="flex flex-wrap gap-2">' + ex.log.map((s, i) => `<span class="bg-white px-2.5 py-1.5 rounded-xl border border-gray-100 text-xs font-bold text-gray-700 shadow-sm"><span class="text-gray-400 font-normal mr-1">${i+1}ª</span>${s.reps} reps • ${s.load}kg <span class="text-brand-500 ml-1">RIR ${s.rir}</span></span>`).join('') + '</div>'}
+                                      '<div class="flex flex-wrap gap-2">' + ex.log.map((s, i) => `<span class="bg-white px-2.5 py-1.5 rounded-xl border border-gray-100 text-xs font-bold text-gray-700 shadow-sm"><span class="text-gray-400 font-normal mr-1">${i+1}ª</span>${s.reps} ${s.isCardio || ex.isCardio ? 'min' : 'reps'} • ${s.load} ${s.isCardio || ex.isCardio ? 'km/h' : 'kg'} <span class="text-brand-500 ml-1">RIR ${s.rir}</span></span>`).join('') + '</div>'}
                                 </div>
                             `).join('')}
                         </div>
