@@ -4,7 +4,7 @@ import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js'
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.2'; // Atualizado para garantir a injeção do cardio
+const APP_VERSION = '2.3'; 
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -12,7 +12,6 @@ let CUSTOM_WORKOUTS;
 if (currentVersion !== APP_VERSION || !localStorage.getItem('customWorkouts')) {
     CUSTOM_WORKOUTS = JSON.parse(JSON.stringify(WORKOUTS));
     
-    // --- NOVO: Injeta o treino de Cardio automaticamente se não existir ---
     if (!CUSTOM_WORKOUTS.find(w => w.id === 'treino_cardio')) {
         CUSTOM_WORKOUTS.push({
             id: 'treino_cardio',
@@ -23,9 +22,9 @@ if (currentVersion !== APP_VERSION || !localStorage.getItem('customWorkouts')) {
                     id: 'cardio_1',
                     name: 'Esteira',
                     isCardio: true,
-                    sets: 1, // 1 sessão única
-                    reps: 30, // 30 minutos
-                    load: 5.5, // 5.5 km/h
+                    sets: 1, 
+                    reps: 30, 
+                    load: 3.5, 
                     rest: 0
                 }
             ]
@@ -57,11 +56,13 @@ window.navigate = async function(page, data = null) {
     if (page === 'home') await renderHome();
     if (page === 'configure') renderConfigure(data);
     if (page === 'history') await renderHistory();
-    if (page === 'session') startWorkoutSession(data);
+    if (page === 'session') await startWorkoutSession(data);
 };
 
+// --- NOVO: Cálculo da semana com base em Ciclos (Total de treinos no app) ---
 function getCurrentWeekInfo(totalWorkouts) {
-    const currentWeek = Math.floor((totalWorkouts - 1) / 7) + 1;
+    const treinosPorCiclo = CUSTOM_WORKOUTS.length; // Conta quantos treinos diferentes existem
+    const currentWeek = Math.floor(totalWorkouts / treinosPorCiclo) + 1;
     
     let phase = "";
     if (currentWeek <= 2) phase = "Adaptação (RIR 3)";
@@ -75,7 +76,15 @@ function getCurrentWeekInfo(totalWorkouts) {
     else if (currentWeek <= 20) phase = "Bloco final";
     else phase = "Avaliação final";
     
-    return { week: currentWeek, type: phase };
+    return { week: currentWeek, type: phase, cycleSize: treinosPorCiclo };
+}
+
+// --- NOVO: Lógica de evolução matemática do Cardio ---
+function getCardioTarget(week) {
+    let minutes = 30;
+    // Começa em 3.5 e sobe 0.2 a cada ciclo completo (semana)
+    let speed = 3.5 + ((week - 1) * 0.2); 
+    return { minutes, speed: Number(speed.toFixed(1)) };
 }
 
 async function renderHome() {
@@ -97,7 +106,7 @@ async function renderHome() {
         `;
     } else {
         const currentWeekInfo = getCurrentWeekInfo(totalWorkouts);
-        const treinosNaSemanaAtual = ((totalWorkouts - 1) % 7) + 1;
+        const treinosNaSemanaAtual = totalWorkouts % currentWeekInfo.cycleSize;
         
         weekDisplayHtml = `
             <div class="flex justify-between items-end">
@@ -106,7 +115,7 @@ async function renderHome() {
                     <p class="text-sm text-gray-600">${currentWeekInfo.type}</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-xs font-bold text-brand-600 bg-brand-100 px-2 py-1 rounded-lg inline-block mb-1">${treinosNaSemanaAtual}/7</p>
+                    <p class="text-xs font-bold text-brand-600 bg-brand-100 px-2 py-1 rounded-lg inline-block mb-1">${treinosNaSemanaAtual}/${currentWeekInfo.cycleSize}</p>
                     <p class="text-[10px] text-gray-400 uppercase tracking-wide">treinos</p>
                 </div>
             </div>
@@ -167,7 +176,6 @@ window.addExercise = function(workoutId) {
     const workout = CUSTOM_WORKOUTS.find(w => w.id === workoutId);
     saveConfigToMemory(workout);
     
-    // --- NOVO: Se estiver adicionando no treino de cardio, o novo exercício herda o formato ---
     const isCardioWorkout = workoutId === 'treino_cardio';
     
     workout.exercises.push({
@@ -176,7 +184,7 @@ window.addExercise = function(workoutId) {
         isCardio: isCardioWorkout,
         sets: isCardioWorkout ? 1 : 3,
         reps: isCardioWorkout ? 15 : 12,
-        load: isCardioWorkout ? 5 : 0,
+        load: isCardioWorkout ? 3.5 : 0,
         rest: isCardioWorkout ? 0 : 60
     });
     renderConfigure(workoutId);
@@ -276,8 +284,22 @@ function renderConfigure(workoutId) {
     });
 }
 
-function startWorkoutSession(workoutId) {
+// --- ATUALIZADO: Agora é async para buscar a semana atual antes de iniciar ---
+async function startWorkoutSession(workoutId) {
     currentWorkout = CUSTOM_WORKOUTS.find(w => w.id === workoutId);
+    
+    // Injeção dinâmica da meta do Cardio baseada na semana atual
+    const history = await getHistoryLogs();
+    const currentWeekInfo = getCurrentWeekInfo(history.length);
+    
+    currentWorkout.exercises.forEach(ex => {
+        if (ex.isCardio) {
+            const target = getCardioTarget(currentWeekInfo.week);
+            ex.reps = target.minutes; 
+            ex.load = target.speed;   
+        }
+    });
+
     currentExerciseIndex = 0;
     currentSet = 1;
     sessionLog = [];
