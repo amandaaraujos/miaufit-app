@@ -293,3 +293,10 @@ function hideRestTimer() {
 }
 
 ```
+// 1. Expõe as funções principais para o HTML conseguir usar (como os botões do menu)
+window.navigate = navigate;
+
+// 2. Dá o gatilho para desenhar a tela inicial assim que o aplicativo carregar
+document.addEventListener('DOMContentLoaded', () => {
+    navigate('home'); 
+});
