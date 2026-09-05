@@ -1,6 +1,20 @@
 import { WEEKS, WORKOUTS } from './cartilha.js';
 import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js';
 
+// --- ESCUDO ANTI-TELA-BRANCA ---
+// Se houver falha (ex: CORS, banco de dados off), ele mostra na tela.
+window.onerror = function(msg, url, lineNo) {
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+        appContent.innerHTML = `
+        <div class="p-6 m-4 bg-red-50 border border-red-200 rounded-xl">
+            <h3 class="font-bold text-red-700 mb-2">Erro de Carregamento</h3>
+            <p class="text-xs text-red-600 font-mono break-all">${msg}</p>
+            <p class="text-xs text-red-500 mt-2">Linha: ${lineNo}</p>
+        </div>`;
+    }
+};
+
 // --- ESTADO DA APLICAÇÃO ---
 let currentWorkout = null;
 let currentExerciseIndex = 0;
@@ -9,23 +23,30 @@ let cycleCounter = 1;
 let restInterval = null;
 
 // --- EXPOSIÇÃO GLOBAL PARA O HTML ---
-// Garante que o index.html consiga enxergar as funções
 window.navigate = navigate;
 window.startWorkout = startWorkout;
 window.nextExercise = nextExercise;
 window.deleteLog = deleteLog;
 
-// --- INICIALIZAÇÃO DIRETA ---
-// O type="module" já carrega após o HTML. Chamar direto garante que a tela apareça.
-navigate('home');
+// --- INICIALIZAÇÃO BLINDADA ---
+function initApp() {
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+        navigate('home');
+    } else {
+        // Se o DOM ainda não existe, tenta de novo em 100ms
+        setTimeout(initApp, 100);
+    }
+}
+initApp();
 
 // --- ROTEAMENTO ---
 function navigate(view) {
     const appContent = document.getElementById('app-content');
-    if (!appContent) return; // Proteção contra quebras
+    if (!appContent) return; 
     
     appContent.innerHTML = ''; 
-    hideRestTimer(); // Oculta timer se trocar de aba
+    hideRestTimer(); 
 
     if (view === 'home') {
         renderHome(appContent);
@@ -74,7 +95,6 @@ function renderCurrentExercise() {
     let inputAreaHtml = '';
 
     if (exercise.isCardio) {
-        // Cardio: Mostra meta com progressão e campos de Tempo e Velocidade
         const targetSpeed = exercise.load + ((cycleCounter - 1) * 0.5);
         
         inputAreaHtml = `
@@ -95,7 +115,6 @@ function renderCurrentExercise() {
             </div>
         `;
     } else {
-        // Musculação: Carga, Repetições e RIR
         inputAreaHtml = `
             <div class="space-y-4 mb-6">
                 <div class="flex justify-between items-center text-sm font-bold text-gray-500 px-2">
@@ -128,7 +147,7 @@ function renderCurrentExercise() {
     container.innerHTML = `
         <div class="p-4 pb-24 max-w-md mx-auto">
             <div class="flex justify-between items-center mb-6">
-                <button onclick="navigate('home')" class="text-gray-400 hover:text-gray-800"><i class="ri-arrow-left-s-line text-3xl"></i></button>
+                <button onclick="window.navigate('home')" class="text-gray-400 hover:text-gray-800"><i class="ri-arrow-left-s-line text-3xl"></i></button>
                 <span class="text-sm font-bold text-gray-400">Exercício ${currentExerciseIndex + 1} de ${currentWorkout.exercises.length}</span>
                 <div class="w-8"></div>
             </div>
@@ -172,7 +191,7 @@ function nextExercise() {
         finishWorkout();
     } else {
         currentExerciseIndex++;
-        triggerRestTimer(90); // Timer de transição
+        triggerRestTimer(90); 
         renderCurrentExercise();
     }
 }
@@ -188,7 +207,7 @@ async function finishWorkout() {
     
     const success = await saveSessionLog(currentWorkout.id, currentLog);
     
-    if (success) {
+    if (success !== false) { // Ajuste fino caso a função não retorne true explícito
         navigate('history');
     } else {
         alert("Erro ao salvar o treino. Verifique sua conexão e tente novamente.");
@@ -210,14 +229,14 @@ async function renderHistory(container) {
     const historyData = await getHistoryLogs();
     const historyList = document.getElementById('history-list');
     
-    if (historyData.length === 0) {
+    if (!historyData || historyData.length === 0) {
         historyList.innerHTML = '<p class="text-gray-400 text-center py-8 bg-gray-50 rounded-xl">Nenhum treino registrado ainda.</p>';
         return;
     }
 
     let html = '';
     historyData.forEach(log => {
-        const dateObj = log.date?.toDate ? log.date.toDate() : new Date(log.date);
+        const dateObj = log.date?.toDate ? log.date.toDate() : new Date(log.date || Date.now());
         const dateStr = dateObj.toLocaleDateString('pt-BR');
         
         const workoutRef = WORKOUTS.find(w => w.id === log.workoutId);
@@ -253,7 +272,7 @@ async function renderHistory(container) {
     historyList.innerHTML = html;
 }
 
-// Função global separada para deletar do histórico
+// Função global para deletar do histórico
 async function deleteLog(id) {
     if(confirm('Você tem certeza que deseja excluir este treino do histórico?')) {
         await deleteSessionLog(id);
