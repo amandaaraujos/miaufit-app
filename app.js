@@ -1,8 +1,3 @@
-Aqui está o **`app.js`** atualizado. Ele integra perfeitamente a lógica do timer de 90 segundos entre os exercícios e a renderização condicional do cardio (Tempo/Velocidade) com a progressão automática de 0,5 km/h baseada no ciclo atual.
-
-Toda a lógica visual, sistema de abas (Home/Histórico), cálculo de RIR e a comunicação com o seu `firebase.js` foram preservadas intactas.
-
-```javascript
 import { WEEKS, WORKOUTS } from './cartilha.js';
 import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js';
 
@@ -10,27 +5,27 @@ import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js'
 let currentWorkout = null;
 let currentExerciseIndex = 0;
 let currentLog = [];
-let cycleCounter = 1; // Contador de ciclos para o cálculo de progressão (pode ser ajustado conforme a sua regra de negócio futura)
+let cycleCounter = 1; 
 let restInterval = null;
 
-// Inicialização
-document.addEventListener('DOMContentLoaded', () => {
-    // Expõe as funções globalmente para funcionarem com os onClick do HTML
-    window.navigate = navigate;
-    window.startWorkout = startWorkout;
-    window.nextExercise = nextExercise;
-    
-    // Inicia na tela Home
-    navigate('home');
-});
+// --- EXPOSIÇÃO GLOBAL PARA O HTML ---
+// Garante que o index.html consiga enxergar as funções
+window.navigate = navigate;
+window.startWorkout = startWorkout;
+window.nextExercise = nextExercise;
+window.deleteLog = deleteLog;
 
-// --- ROTEAMENTO BÁSICO ---
+// --- INICIALIZAÇÃO DIRETA ---
+// O type="module" já carrega após o HTML. Chamar direto garante que a tela apareça.
+navigate('home');
+
+// --- ROTEAMENTO ---
 function navigate(view) {
     const appContent = document.getElementById('app-content');
-    appContent.innerHTML = ''; 
+    if (!appContent) return; // Proteção contra quebras
     
-    // Oculta o banner de timer caso o usuário troque de aba no meio do descanso
-    hideRestTimer();
+    appContent.innerHTML = ''; 
+    hideRestTimer(); // Oculta timer se trocar de aba
 
     if (view === 'home') {
         renderHome(appContent);
@@ -78,9 +73,8 @@ function renderCurrentExercise() {
 
     let inputAreaHtml = '';
 
-    // Verifica se é Cardio para mudar a interface e aplicar a progressão
     if (exercise.isCardio) {
-        // Lógica de progressão de Cardio (+0.5km/h a cada ciclo)
+        // Cardio: Mostra meta com progressão e campos de Tempo e Velocidade
         const targetSpeed = exercise.load + ((cycleCounter - 1) * 0.5);
         
         inputAreaHtml = `
@@ -101,7 +95,7 @@ function renderCurrentExercise() {
             </div>
         `;
     } else {
-        // Lógica tradicional de Musculação com RIR e Carga
+        // Musculação: Carga, Repetições e RIR
         inputAreaHtml = `
             <div class="space-y-4 mb-6">
                 <div class="flex justify-between items-center text-sm font-bold text-gray-500 px-2">
@@ -153,7 +147,6 @@ function renderCurrentExercise() {
 function nextExercise() {
     const exercise = currentWorkout.exercises[currentExerciseIndex];
     
-    // Captura e salva os dados preenchidos
     if (exercise.isCardio) {
         currentLog.push({
             id: exercise.id,
@@ -179,7 +172,7 @@ function nextExercise() {
         finishWorkout();
     } else {
         currentExerciseIndex++;
-        triggerRestTimer(90); // Aciona o timer de transição entre exercícios
+        triggerRestTimer(90); // Timer de transição
         renderCurrentExercise();
     }
 }
@@ -199,7 +192,7 @@ async function finishWorkout() {
         navigate('history');
     } else {
         alert("Erro ao salvar o treino. Verifique sua conexão e tente novamente.");
-        renderCurrentExercise(); // Retorna à tela para o usuário não perder os dados
+        renderCurrentExercise();
     }
 }
 
@@ -224,7 +217,7 @@ async function renderHistory(container) {
 
     let html = '';
     historyData.forEach(log => {
-        const dateObj = log.date.toDate ? log.date.toDate() : new Date(log.date);
+        const dateObj = log.date?.toDate ? log.date.toDate() : new Date(log.date);
         const dateStr = dateObj.toLocaleDateString('pt-BR');
         
         const workoutRef = WORKOUTS.find(w => w.id === log.workoutId);
@@ -244,25 +237,28 @@ async function renderHistory(container) {
                 <div class="space-y-2 mt-3 pt-3 border-t border-gray-50">
         `;
 
-        log.exercises.forEach(ex => {
-            if (ex.isCardio) {
-                html += `<p class="text-[13px] text-gray-600"><span class="font-bold text-gray-700">${ex.name}:</span> ${ex.time} min a ${ex.speed} km/h</p>`;
-            } else {
-                html += `<p class="text-[13px] text-gray-600"><span class="font-bold text-gray-700">${ex.name}:</span> ${ex.load}kg | ${ex.reps} reps | RIR ${ex.rir}</p>`;
-            }
-        });
+        if (log.exercises && Array.isArray(log.exercises)) {
+            log.exercises.forEach(ex => {
+                if (ex.isCardio) {
+                    html += `<p class="text-[13px] text-gray-600"><span class="font-bold text-gray-700">${ex.name}:</span> ${ex.time} min a ${ex.speed} km/h</p>`;
+                } else {
+                    html += `<p class="text-[13px] text-gray-600"><span class="font-bold text-gray-700">${ex.name}:</span> ${ex.load}kg | ${ex.reps} reps | RIR ${ex.rir}</p>`;
+                }
+            });
+        }
 
         html += `</div></div>`;
     });
 
     historyList.innerHTML = html;
-    
-    window.deleteLog = async (id) => {
-        if(confirm('Você tem certeza que deseja excluir este treino do histórico?')) {
-            await deleteSessionLog(id);
-            renderHistory(document.getElementById('app-content'));
-        }
-    };
+}
+
+// Função global separada para deletar do histórico
+async function deleteLog(id) {
+    if(confirm('Você tem certeza que deseja excluir este treino do histórico?')) {
+        await deleteSessionLog(id);
+        navigate('history');
+    }
 }
 
 // --- GERENCIAMENTO DO TIMER DE TRANSIÇÃO ---
@@ -291,12 +287,3 @@ function hideRestTimer() {
     if (banner) banner.style.display = 'none';
     if (restInterval) clearInterval(restInterval);
 }
-
-```
-// 1. Expõe as funções principais para o HTML conseguir usar (como os botões do menu)
-window.navigate = navigate;
-
-// 2. Dá o gatilho para desenhar a tela inicial assim que o aplicativo carregar
-document.addEventListener('DOMContentLoaded', () => {
-    navigate('home'); 
-});
