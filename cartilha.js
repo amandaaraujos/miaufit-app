@@ -1,63 +1,71 @@
+// cartilha.js - Estrutura base dos treinos e semanas
+
 export const WEEKS = [
     { week: 1, type: "Adaptação (RIR 3)" },
     { week: 2, type: "Adaptação (RIR 3)" },
-    { week: 3, type: "Acúmulo (RIR 1-2)" },
-    { week: 7, type: "Deload (-30% volume)" }
+    { week: 3, type: "Acúmulo" },
+    { week: 4, type: "Acúmulo" },
+    { week: 5, type: "Acúmulo" },
+    { week: 6, type: "Transição" },
+    { week: 7, type: "DELOAD (Reduza 30-40% volume)" },
+    { week: 8, type: "Progressão 2" },
+    { week: 9, type: "Progressão 2" },
+    { week: 10, type: "Progressão 2" },
+    { week: 11, type: "Progressão 2" },
+    { week: 12, type: "DELOAD (Reduza 30-40% volume)" },
+    { week: 13, type: "Progressão 3" },
+    { week: 14, type: "Progressão 3" },
+    { week: 15, type: "Progressão 3" },
+    { week: 16, type: "Progressão 3" },
+    { week: 17, type: "DELOAD (Reduza 30-40% volume)" },
+    { week: 18, type: "Bloco final" },
+    { week: 19, type: "Bloco final" },
+    { week: 20, type: "Bloco final" }
 ];
 
 export const WORKOUTS = [
     {
-        id: 'inferior_a',
-        name: 'Inferior A',
-        focus: 'Foco: Quadríceps, Glúteos e controle técnico',
+        id: 'treino_a',
+        name: '🏋️‍♀️ Treino A - Membros Inferiores',
+        focus: 'Quadríceps, Glúteos e Panturrilha',
         exercises: [
-            { id: 'ia1', name: 'Hip thrust com barra', sets: 3, reps: 15, load: 8, rest: 120 },
-            { id: 'ia2', name: 'Agachamento com barra', sets: 3, reps: 15, load: 8, rest: 120 },
-            { id: 'ia3', name: 'Afundo búlgaro', sets: 3, reps: 12, load: 0, rest: 120 },
-            { id: 'ia4', name: 'Extensão de joelho', sets: 3, reps: 20, load: 5, rest: 60 },
-            { id: 'ia5', name: 'Panturrilha', sets: 3, reps: 20, load: 8, rest: 60 },
-            { id: 'ia6', name: 'Dead bug', sets: 3, reps: 12, load: 0, rest: 60 }
+            { id: 'a_1', name: 'Agachamento Livre / Leg Press', isCardio: false, sets: 3, reps: 10, load: 20, rest: 90 },
+            { id: 'a_2', name: 'Cadeira Extensora', isCardio: false, sets: 3, reps: 12, load: 15, rest: 60 },
+            { id: 'a_3', name: 'Afundo / Passada', isCardio: false, sets: 3, reps: 10, load: 10, rest: 60 },
+            { id: 'a_4', name: 'Gêmeos em Pé (Panturrilha)', isCardio: false, sets: 4, reps: 15, load: 25, rest: 45 }
         ]
     },
     {
-        id: 'superior_a',
-        name: 'Superior A',
-        focus: 'Foco: Costas, Peitoral e estabilidade',
+        id: 'treino_b',
+        name: '💪 Treino B - Membros Superiores',
+        focus: 'Costas, Ombros, Peito e Braços',
         exercises: [
-            { id: 'sa1', name: 'Remada cavalinho', sets: 3, reps: 15, load: 8, rest: 120 },
-            { id: 'sa2', name: 'Supino com halteres', sets: 3, reps: 15, load: 4, rest: 120 },
-            { id: 'sa3', name: 'Remada unilateral', sets: 3, reps: 15, load: 6, rest: 120 },
-            { id: 'sa4', name: 'Desenvolvimento', sets: 3, reps: 12, load: 4, rest: 120 },
-            { id: 'sa5', name: 'Elevação lateral', sets: 3, reps: 20, load: 2, rest: 60 },
-            { id: 'sa6', name: 'Rosca direta', sets: 3, reps: 15, load: 4, rest: 60 },
-            { id: 'sa7', name: 'Tríceps francês', sets: 3, reps: 15, load: 3, rest: 60 }
+            { id: 'b_1', name: 'Puxada Frontal', isCardio: false, sets: 3, reps: 12, load: 20, rest: 60 },
+            { id: 'b_2', name: 'Remada Baixa com Triângulo', isCardio: false, sets: 3, reps: 12, load: 20, rest: 60 },
+            { id: 'b_3', name: 'Desenvolvimento com Halteres', isCardio: false, sets: 3, reps: 10, load: 6, rest: 60 },
+            { id: 'b_4', name: 'Elevação Lateral', isCardio: false, sets: 3, reps: 15, load: 4, rest: 45 },
+            { id: 'b_5', name: 'Tríceps Corda', isCardio: false, sets: 3, reps: 12, load: 12, rest: 45 }
         ]
     },
     {
-        id: 'inferior_b',
-        name: 'Inferior B',
-        focus: 'Foco: Posterior de coxa, Glúteos e estabilidade',
+        id: 'treino_c',
+        name: '🍑 Treino C - Posterior & Glúteo',
+        focus: 'Isquiotibiais, Glúteo Máximo e Core',
         exercises: [
-            { id: 'ib1', name: 'Stiff', sets: 3, reps: 12, load: 8, rest: 120 },
-            { id: 'ib2', name: 'Hip thrust com pausa', sets: 3, reps: 15, load: 8, rest: 120 },
-            { id: 'ib3', name: 'Agachamento', sets: 3, reps: 15, load: 8, rest: 120 },
-            { id: 'ib4', name: 'Flexão de joelho', sets: 3, reps: 20, load: 5, rest: 60 },
-            { id: 'ib5', name: 'Afundo reverso', sets: 3, reps: 12, load: 0, rest: 120 },
-            { id: 'ib6', name: 'Panturrilha', sets: 3, reps: 20, load: 8, rest: 60 }
+            { id: 'c_1', name: 'Elevação Pélvica', isCardio: false, sets: 4, reps: 10, load: 30, rest: 90 },
+            { id: 'c_2', name: 'Stiff com Halteres', isCardio: false, sets: 3, reps: 12, load: 12, rest: 60 },
+            { id: 'c_3', name: 'Cadeira Flexora', isCardio: false, sets: 3, reps: 12, load: 20, rest: 60 },
+            { id: 'c_4', name: 'Cadeira Abdutora', isCardio: false, sets: 3, reps: 15, load: 30, rest: 45 },
+            { id: 'c_5', name: 'Prancha Abdominal', isCardio: false, sets: 3, reps: 45, load: 0, rest: 45 }
         ]
     },
     {
-        id: 'superior_b',
-        name: 'Superior B',
-        focus: 'Foco: Costas, Peitoral e controle articular',
+        id: 'treino_cardio',
+        name: '🏃‍♀️ Cardio',
+        focus: 'Condicionamento físico e resistência cardiovascular',
         exercises: [
-            { id: 'sb1', name: 'Remada unilateral', sets: 3, reps: 12, load: 6, rest: 120 },
-            { id: 'sb2', name: 'Supino com halteres', sets: 3, reps: 15, load: 4, rest: 120 },
-            { id: 'sb3', name: 'Pullover', sets: 3, reps: 15, load: 4, rest: 90 },
-            { id: 'sb4', name: 'Desenvolvimento', sets: 3, reps: 15, load: 4, rest: 120 },
-            { id: 'sb5', name: 'Elevação lateral', sets: 3, reps: 20, load: 2, rest: 60 },
-            { id: 'sb6', name: 'Rosca direta', sets: 3, reps: 15, load: 4, rest: 60 },
-            { id: 'sb7', name: 'Tríceps francês', sets: 3, reps: 15, load: 3, rest: 60 }
+            // No cardio, 'load' funciona como a velocidade base inicial e 'reps' como o tempo em minutos
+            { id: 'cardio_1', name: 'Esteira', isCardio: true, sets: 1, reps: 30, load: 3.5, rest: 0 }
         ]
     }
 ];
