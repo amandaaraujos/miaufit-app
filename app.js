@@ -4,7 +4,7 @@ import { saveSessionLog, getHistoryLogs, deleteSessionLog } from './firebase.js'
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.3'; 
+const APP_VERSION = '2.4'; 
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -59,9 +59,9 @@ window.navigate = async function(page, data = null) {
     if (page === 'session') await startWorkoutSession(data);
 };
 
-// --- NOVO: Cálculo da semana com base em Ciclos (Total de treinos no app) ---
+// --- Cálculo da semana com base em Ciclos ---
 function getCurrentWeekInfo(totalWorkouts) {
-    const treinosPorCiclo = CUSTOM_WORKOUTS.length; // Conta quantos treinos diferentes existem
+    const treinosPorCiclo = CUSTOM_WORKOUTS.length; 
     const currentWeek = Math.floor(totalWorkouts / treinosPorCiclo) + 1;
     
     let phase = "";
@@ -79,11 +79,10 @@ function getCurrentWeekInfo(totalWorkouts) {
     return { week: currentWeek, type: phase, cycleSize: treinosPorCiclo };
 }
 
-// --- NOVO: Lógica de evolução matemática do Cardio ---
+// --- Cardio aumenta de 0.5 em 0.5 km/h por semana/ciclo ---
 function getCardioTarget(week) {
     let minutes = 30;
-    // Começa em 3.5 e sobe 0.2 a cada ciclo completo (semana)
-    let speed = 3.5 + ((week - 1) * 0.2); 
+    let speed = 3.5 + ((week - 1) * 0.5); 
     return { minutes, speed: Number(speed.toFixed(1)) };
 }
 
@@ -284,11 +283,9 @@ function renderConfigure(workoutId) {
     });
 }
 
-// --- ATUALIZADO: Agora é async para buscar a semana atual antes de iniciar ---
 async function startWorkoutSession(workoutId) {
     currentWorkout = CUSTOM_WORKOUTS.find(w => w.id === workoutId);
     
-    // Injeção dinâmica da meta do Cardio baseada na semana atual
     const history = await getHistoryLogs();
     const currentWeekInfo = getCurrentWeekInfo(history.length);
     
