@@ -13,7 +13,7 @@ export const WORKOUTS = [
         exercises: [
             { id: 'ia1', name: 'Hip thrust com barra', sets: 3, reps: 15, load: 8, rest: 120 },
             { id: 'ia2', name: 'Agachamento com barra', sets: 3, reps: 15, load: 8, rest: 120 },
-            { id: 'ia3', name: 'Afundo búlgaro', sets: 3, reps: 12, load: 0, rest: 120 },
+            { id: 'ia3', name: 'Afundo búlgaro', sets: 3, reps: 12, load: 0, rest: 120, isUnilateral: true },
             { id: 'ia4', name: 'Extensão de joelho', sets: 3, reps: 20, load: 5, rest: 60 },
             { id: 'ia5', name: 'Panturrilha', sets: 3, reps: 20, load: 8, rest: 60 },
             { id: 'ia6', name: 'Dead bug', sets: 3, reps: 12, load: 0, rest: 60 }
@@ -26,7 +26,7 @@ export const WORKOUTS = [
         exercises: [
             { id: 'sa1', name: 'Remada cavalinho', sets: 3, reps: 15, load: 8, rest: 120 },
             { id: 'sa2', name: 'Supino com halteres', sets: 3, reps: 15, load: 4, rest: 120 },
-            { id: 'sa3', name: 'Remada unilateral', sets: 3, reps: 15, load: 6, rest: 120 },
+            { id: 'sa3', name: 'Remada unilateral', sets: 3, reps: 15, load: 6, rest: 120, isUnilateral: true },
             { id: 'sa4', name: 'Desenvolvimento', sets: 3, reps: 12, load: 4, rest: 120 },
             { id: 'sa5', name: 'Elevação lateral', sets: 3, reps: 20, load: 2, rest: 60 },
             { id: 'sa6', name: 'Rosca direta', sets: 3, reps: 15, load: 4, rest: 60 },
@@ -42,7 +42,7 @@ export const WORKOUTS = [
             { id: 'ib2', name: 'Hip thrust com pausa', sets: 3, reps: 15, load: 8, rest: 120 },
             { id: 'ib3', name: 'Agachamento', sets: 3, reps: 15, load: 8, rest: 120 },
             { id: 'ib4', name: 'Flexão de joelho', sets: 3, reps: 20, load: 5, rest: 60 },
-            { id: 'ib5', name: 'Afundo reverso', sets: 3, reps: 12, load: 0, rest: 120 },
+            { id: 'ib5', name: 'Afundo reverso', sets: 3, reps: 12, load: 0, rest: 120, isUnilateral: true },
             { id: 'ib6', name: 'Panturrilha', sets: 3, reps: 20, load: 8, rest: 60 }
         ]
     },
@@ -51,7 +51,7 @@ export const WORKOUTS = [
         name: 'Superior B',
         focus: 'Foco: Costas, Peitoral e controle articular',
         exercises: [
-            { id: 'sb1', name: 'Remada unilateral', sets: 3, reps: 12, load: 6, rest: 120 },
+            { id: 'sb1', name: 'Remada unilateral', sets: 3, reps: 12, load: 6, rest: 120, isUnilateral: true },
             { id: 'sb2', name: 'Supino com halteres', sets: 3, reps: 15, load: 4, rest: 120 },
             { id: 'sb3', name: 'Pullover', sets: 3, reps: 15, load: 4, rest: 90 },
             { id: 'sb4', name: 'Desenvolvimento', sets: 3, reps: 15, load: 4, rest: 120 },
