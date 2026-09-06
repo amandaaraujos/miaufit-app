@@ -16,7 +16,42 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-// Função para salvar a execução real no banco
+// ---------------------------------------------------------------
+// FILA LOCAL DE PENDÊNCIAS
+// Se o salvamento no Firestore falhar (sem internet, regras de
+// segurança bloqueando, projeto com problema, etc.) o treino NÃO
+// é perdido: fica guardado no localStorage e o app tenta
+// sincronizar de novo automaticamente mais tarde.
+// ---------------------------------------------------------------
+const PENDING_KEY = 'pendingSessionLogs';
+
+export function getPendingLogs() {
+    try {
+        return JSON.parse(localStorage.getItem(PENDING_KEY)) || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+export function savePendingLocally(workoutId, sessionLogs) {
+    const pending = getPendingLogs();
+    pending.push({
+        id: 'local_' + Date.now(),
+        workoutId,
+        sessionLogs,
+        savedAt: Date.now()
+    });
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+}
+
+export function removePendingLog(localId) {
+    const pending = getPendingLogs().filter(p => p.id !== localId);
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+}
+
+// Função para salvar a execução real no banco.
+// Retorna { ok: true } ou { ok: false, error: '<motivo real>' } —
+// quem chama decide o que mostrar/fazer, sem alert() escondido aqui.
 export async function saveSessionLog(workoutId, sessionLogs) {
     try {
         await addDoc(collection(db, 'session_logs'), {
@@ -24,11 +59,31 @@ export async function saveSessionLog(workoutId, sessionLogs) {
             date: serverTimestamp(),
             exercises: sessionLogs
         });
-        alert("Treino salvo com sucesso no Histórico!");
+        return { ok: true };
     } catch (e) {
         console.error("Erro ao salvar: ", e);
-        alert("Erro ao salvar o treino.");
+        return { ok: false, error: (e && (e.code || e.message)) || String(e) };
     }
+}
+
+// Tenta reenviar tudo que ficou pendente. Chamado automaticamente ao
+// abrir o app e também pode ser disparado manualmente pelo usuário.
+export async function trySyncPendingLogs() {
+    const pending = getPendingLogs();
+    if (!pending.length) return { synced: 0, remaining: 0, lastError: null };
+
+    let synced = 0;
+    let lastError = null;
+    for (const item of pending) {
+        const result = await saveSessionLog(item.workoutId, item.sessionLogs);
+        if (result.ok) {
+            removePendingLog(item.id);
+            synced++;
+        } else {
+            lastError = result.error;
+        }
+    }
+    return { synced, remaining: getPendingLogs().length, lastError };
 }
 
 // Função para buscar o histórico
@@ -48,7 +103,7 @@ export async function getHistoryLogs() {
     }
 }
 
-// NOVA FUNÇÃO: Deletar registro do histórico
+// Deletar registro do histórico
 export async function deleteSessionLog(id) {
     try {
         await deleteDoc(doc(db, 'session_logs', id));
