@@ -599,14 +599,18 @@ function renderExerciseSession() {
             return alert(`Por favor, preencha ${ex.isCardio ? 'a velocidade e os minutos' : 'a carga e as repetições'}. 💪`);
         }
 
-        exerciseLog.push({
+        // Importante: o Firestore rejeita gravações com campos "undefined"
+        // (erro invalid-argument), então só incluímos "side" quando o
+        // exercício é unilateral, e sempre gravamos isCardio como booleano.
+        const setEntry = {
             set: currentSet,
-            side: ex.isUnilateral ? sideLabel : undefined,
             load: Number(load),
             reps: Number(reps),
             rir: Number(selectedRir),
-            isCardio: ex.isCardio
-        });
+            isCardio: !!ex.isCardio
+        };
+        if (ex.isUnilateral) setEntry.side = sideLabel;
+        exerciseLog.push(setEntry);
 
         // Exercício unilateral: faz o lado Esquerdo logo em seguida,
         // SEM descanso entre os lados — o descanso conta uma vez por série,
@@ -624,7 +628,7 @@ function renderExerciseSession() {
             persistSession();
             startRest(ex.rest);
         } else {
-            sessionLog.push({ exerciseId: ex.id, name: ex.name, log: exerciseLog, isCardio: ex.isCardio, isUnilateral: ex.isUnilateral });
+            sessionLog.push({ exerciseId: ex.id, name: ex.name, log: exerciseLog, isCardio: !!ex.isCardio, isUnilateral: !!ex.isUnilateral });
 
             const exIndex = currentWorkout.exercises.findIndex(e => e.id === ex.id);
             if (exIndex !== -1) {
