@@ -3,60 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Meu Treino</title>
+    <title>MiauFit Web</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    
+    <!-- Tailwind CSS (Visual) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac',
-                            400: '#4ade80', 500: '#22c55e', 600: '#16a34a', 700: '#15803d',
-                            800: '#166534', 900: '#14532d',
-                        }
-                    }
-                }
-            }
+            theme: { extend: { colors: { brand: { 50: '#fdf3f4', 100: '#fce4e7', 500: '#f43f5e', 600: '#e11d48', 900: '#881337' } } } }
         }
     </script>
+    
+    <!-- Ícones -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-    </style>
+    
+    <!-- Seus estilos customizados -->
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="text-gray-800 antialiased selection:bg-brand-200 selection:text-brand-900">
+<body class="bg-gray-50 text-gray-900 antialiased pb-20 md:pb-0 md:pl-64">
 
-    <div id="rest-banner" class="fixed top-0 left-0 w-full bg-brand-600 text-white p-3 z-50 shadow-md transition-all" style="display: none;">
-        <div class="max-w-md mx-auto flex justify-between items-center px-4">
-            <div class="flex items-center gap-2">
-                <i class="ri-timer-flash-line text-xl animate-pulse"></i>
-                <span class="font-bold text-sm">Próximo exercício...</span>
-            </div>
-            <div class="text-lg font-black bg-white/20 px-3 py-1 rounded-lg">
-                <span id="rest-time-left">90</span>s
-            </div>
-        </div>
+    <!-- BANNER DE TRANSIÇÃO DINÂMICO (Controlado pelo app.js) -->
+    <div id="rest-banner" style="display: none;" class="fixed top-0 left-0 w-full bg-orange-500 text-white text-center py-3 z-[100] shadow-md font-bold transition-all">
+        ⏳ Próximo exercício! Descanso: <span id="rest-time-left" class="text-xl ml-1">90</span>s
     </div>
+    
+    <!-- Navegação Mobile (Inferior) -->
+    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-3 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button onclick="navigate('home')" class="flex flex-col items-center p-2 text-gray-400 hover:text-brand-600 focus:text-brand-600"><i class="ri-home-line text-2xl"></i><span class="text-[10px] mt-1 font-medium">Início</span></button>
+        <button onclick="navigate('history')" class="flex flex-col items-center p-2 text-gray-400 hover:text-brand-600 focus:text-brand-600"><i class="ri-history-line text-2xl"></i><span class="text-[10px] mt-1 font-medium">Histórico</span></button>
+    </nav>
 
-    <main id="app-content" class="min-h-screen"></main>
-
-    <nav class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-100 pb-safe z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
-        <div class="max-w-md mx-auto flex justify-around p-2">
-            <button onclick="window.navigate('home')" class="flex flex-col items-center p-3 text-gray-400 hover:text-brand-600 active:scale-95 transition-all w-full rounded-2xl">
-                <i class="ri-home-5-line text-2xl mb-1"></i>
-                <span class="text-[10px] font-bold uppercase tracking-wider">Treinos</span>
-            </button>
-            <button onclick="window.navigate('history')" class="flex flex-col items-center p-3 text-gray-400 hover:text-brand-600 active:scale-95 transition-all w-full rounded-2xl">
-                <i class="ri-history-line text-2xl mb-1"></i>
-                <span class="text-[10px] font-bold uppercase tracking-wider">Histórico</span>
-            </button>
+    <!-- Navegação Desktop (Lateral) -->
+    <nav class="hidden md:flex flex-col fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 p-6 z-50">
+        <div class="text-2xl font-bold text-brand-600 mb-12">MiauFit</div>
+        <div class="flex flex-col gap-4">
+            <button onclick="navigate('home')" class="flex items-center gap-4 p-3 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-brand-600 text-left"><i class="ri-home-line text-xl"></i> Início</button>
+            <button onclick="navigate('history')" class="flex items-center gap-4 p-3 rounded-xl text-gray-500 hover:bg-gray-50 hover:text-brand-600 text-left"><i class="ri-history-line text-xl"></i> Histórico</button>
         </div>
     </nav>
 
-    <!-- O app.js agora é responsável por importar tudo sozinho -->
-    <script type="module" src="./app.js"></script>
+    <!-- Conteúdo Principal Dinâmico -->
+    <main id="app-content" class="p-4 md:p-8 max-w-4xl mx-auto min-h-screen">
+        <!-- O JS injetará as telas aqui -->
+    </main>
+
+    <!-- Script Principal (Módulo) -->
+    <script type="module" src="app.js"></script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW registrado!', reg.scope))
+        .catch(err => console.error('Erro ao registrar SW', err));
+    });
+  }
+    </script>
 </body>
 </html>
