@@ -53,10 +53,10 @@ let currentSide = 'D'; // 'D' ou 'E' — só é usado em exercícios unilaterais
 let sessionLog = [];
 let exerciseLog = [];
 
-let restInterval = null;       // intervalo de exibição do descanso ENTRE SÉRIES
-let transitionInterval = null; // intervalo de exibição do descanso ENTRE EXERCÍCIOS
-let restEndTime = null;        // timestamp (ms) de quando o descanso entre séries termina
-let transitionEndTime = null;  // timestamp (ms) de quando o descanso entre exercícios termina
+let restInterval = null;       
+let transitionInterval = null; 
+let restEndTime = null;        
+let transitionEndTime = null;  
 
 const SESSION_KEY = 'activeSession';
 
@@ -137,11 +137,6 @@ function notifyRestOver(message) {
     }
 }
 
-// Recalcula os cronômetros com base no relógio real. Isso é o que garante
-// que, mesmo se o navegador "pausar" o setInterval com a aba em segundo
-// plano, ao voltar (ou trocar de tela) o tempo mostrado e o alarme
-// disparam corretamente — porque contamos por horário absoluto, não por
-// "ticks" perdidos.
 function reconcileTimers() {
     if (restEndTime) {
         const remaining = Math.round((restEndTime - Date.now()) / 1000);
@@ -164,9 +159,6 @@ window.addEventListener('pageshow', reconcileTimers);
 // NAVEGAÇÃO
 // =================================================================
 window.navigate = async function (page, data = null) {
-    // Ir para 'home' ou 'history' NÃO cancela um treino em andamento —
-    // ele continua guardado (em memória + localStorage) e pode ser
-    // retomado depois, com os cronômetros corretos.
     if (page === 'home') await renderHome();
     if (page === 'configure') renderConfigure(data);
     if (page === 'history') await renderHistory();
@@ -473,7 +465,6 @@ async function startWorkoutSession(workoutId) {
 
     const saved = loadPersistedSession();
     if (saved && saved.workoutId === workoutId) {
-        // é o mesmo treino que já estava em andamento: apenas retoma
         return restoreSessionFromSaved(saved);
     }
     if (saved && saved.workoutId !== workoutId) {
@@ -599,9 +590,6 @@ function renderExerciseSession() {
             return alert(`Por favor, preencha ${ex.isCardio ? 'a velocidade e os minutos' : 'a carga e as repetições'}. 💪`);
         }
 
-        // Importante: o Firestore rejeita gravações com campos "undefined"
-        // (erro invalid-argument), então só incluímos "side" quando o
-        // exercício é unilateral, e sempre gravamos isCardio como booleano.
         const setEntry = {
             set: currentSet,
             load: Number(load),
@@ -612,16 +600,13 @@ function renderExerciseSession() {
         if (ex.isUnilateral) setEntry.side = sideLabel;
         exerciseLog.push(setEntry);
 
-        // Exercício unilateral: faz o lado Esquerdo logo em seguida,
-        // SEM descanso entre os lados — o descanso conta uma vez por série,
-        // cobrindo os dois lados.
         if (ex.isUnilateral && currentSide === 'D') {
             currentSide = 'E';
             persistSession();
             renderExerciseSession();
             return;
         }
-        currentSide = 'D'; // reset para a próxima série
+        currentSide = 'D'; 
 
         if (currentSet < ex.sets) {
             currentSet++;
@@ -659,8 +644,6 @@ function renderExerciseSession() {
         renderExerciseSession();
     });
 
-    // Retoma cronômetros que já estavam correndo (após F5, troca de tela
-    // ou reabertura do app) — calculados pelo horário real, não perdidos.
     if (restEndTime) {
         const remaining = Math.round((restEndTime - Date.now()) / 1000);
         if (remaining > 0) startRest(null, true);
@@ -677,7 +660,6 @@ function renderExerciseSession() {
 function startRest(seconds, resume = false) {
     const inputsArea = document.getElementById('inputs-area');
     const restDiv = document.getElementById('rest-timer');
-    const display = document.getElementById('timer-display');
     if (inputsArea) inputsArea.classList.add('hidden');
     if (restDiv) restDiv.classList.remove('hidden');
 
@@ -784,23 +766,33 @@ async function finishWorkout() {
     const finishedWorkoutId = currentWorkout.id;
     const finishedLog = sessionLog;
 
-    const result = await saveSessionLog(finishedWorkoutId, finishedLog);
-    const statusEl = document.getElementById('finish-status');
+    // CORREÇÃO: Limpa a sessão local IMEDIATAMENTE para evitar travamentos em caso de falha de internet ou virada de dia
+    clearPersistedSession();
+    currentWorkout = null;
 
-    if (result.ok) {
-        clearPersistedSession();
-        currentWorkout = null;
-        navigate('home');
-    } else {
-        // Não perde o treino: guarda no aparelho e tenta sincronizar depois.
-        savePendingLocally(finishedWorkoutId, finishedLog);
-        clearPersistedSession();
-        currentWorkout = null;
-        if (statusEl) {
-            statusEl.innerHTML = `Não foi possível salvar no histórico online agora (${result.error || 'erro desconhecido'}).<br>Seu treino foi guardado neste aparelho e o app vai tentar sincronizar automaticamente.`;
-            statusEl.classList.add('text-red-500', 'font-medium');
+    try {
+        const result = await saveSessionLog(finishedWorkoutId, finishedLog);
+        const statusEl = document.getElementById('finish-status');
+
+        if (result.ok) {
+            // CORREÇÃO: Após um salvamento bem sucedido, força a tentativa de sincronizar o que estava retido offline
+            await trySyncPendingLogs();
+            navigate('home');
+        } else {
+            savePendingLocally(finishedWorkoutId, finishedLog);
+            if (statusEl) {
+                statusEl.innerHTML = `Não foi possível salvar online agora (${result.error || 'erro desconhecido'}).<br>Seu treino foi guardado neste aparelho e o app vai tentar sincronizar automaticamente.`;
+                statusEl.classList.add('text-red-500', 'font-medium');
+            }
+            setTimeout(() => {
+                trySyncPendingLogs(); // Tenta sincronizar de novo silenciosamente
+                navigate('home');
+            }, 5000);
         }
-        setTimeout(() => navigate('home'), 5000);
+    } catch (error) {
+        console.error("Erro crítico ao salvar treino:", error);
+        savePendingLocally(finishedWorkoutId, finishedLog);
+        setTimeout(() => navigate('home'), 3000);
     }
 }
 
@@ -859,7 +851,7 @@ async function renderHistory() {
                                 <div class="bg-gray-50/50 p-3.5 rounded-2xl border border-gray-50">
                                     <span class="font-bold text-gray-800 text-sm block mb-2">${ex.name}</span>
                                     ${ex.skipped ? '<span class="text-gray-400 text-xs font-medium bg-gray-100 px-2 py-1 rounded-md">Pulado</span>' :
-                    '<div class="flex flex-wrap gap-2">' + ex.log.map((s, i) => `<span class="bg-white px-2.5 py-1.5 rounded-xl border border-gray-100 text-xs font-bold text-gray-700 shadow-sm"><span class="text-gray-400 font-normal mr-1">${i + 1}ª</span>${s.side ? `<span class="text-brand-500 mr-1">${s.side === 'Direito' ? 'D' : 'E'}</span>` : ''}${s.reps} ${s.isCardio || ex.isCardio ? 'min' : 'reps'} • ${s.load} ${s.isCardio || ex.isCardio ? 'km/h' : 'kg'} <span class="text-brand-500 ml-1">RIR ${s.rir}</span></span>`).join('') + '</div>'}
+                    '<div class="flex flex-wrap gap-2">' + ex.log.map((s, i) => `<span class="bg-white px-2.5 py-1.5 rounded-xl border border-gray-100 text-xs font-bold text-gray-700 shadow-sm"><span class="text-gray-400 font-normal mr-1">${i + 1}ª</span>${s.side ? `<span class="text-brand-500 mr-1">${s.side === 'Direito' ? 'D' : 'E'}</span>` : ''}${s.reps}${s.isCardio || ex.isCardio ? 'min' : 'reps'} • ${s.load}${s.isCardio || ex.isCardio ? 'km/h' : 'kg'} <span class="text-brand-500 ml-1">RIR ${s.rir}</span></span>`).join('') + '</div>'}
                                 </div>
                             `).join('')}
                         </div>
@@ -896,7 +888,6 @@ window.deleteLogHandler = async function (id) {
 (async function boot() {
     requestNotificationPermission();
 
-    // Tenta reenviar qualquer treino que ficou pendente da última vez.
     trySyncPendingLogs();
 
     const saved = loadPersistedSession();
