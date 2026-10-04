@@ -61,6 +61,71 @@ let transitionEndTime = null;
 const SESSION_KEY = 'activeSession';
 
 // =================================================================
+// FUNÇÕES AUXILIARES / UTILITÁRIOS
+// =================================================================
+
+function formatLogDate(dateVal) {
+    if (!dateVal) return 'Sem data';
+    try {
+        let dateObj;
+        if (typeof dateVal.toDate === 'function') {
+            dateObj = dateVal.toDate(); // Timestamp do Firestore
+        } else if (dateVal.seconds) {
+            dateObj = new Date(dateVal.seconds * 1000); // Formato de segundos do Firestore
+        } else {
+            dateObj = new Date(dateVal); // Date comum, ISO string ou número
+        }
+
+        if (isNaN(dateObj.getTime())) return 'Sem data';
+
+        return dateObj.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    } catch (e) {
+        return 'Sem data';
+    }
+}
+
+window.hardResetApp = async function() {
+    if (!confirm("⚠️ ATENÇÃO: Isso vai redefinir as configurações locais, apagar o cache e recarregar o app. Seu histórico na nuvem NÃO será apagado. Deseja continuar?")) {
+        return;
+    }
+
+    try {
+        // Limpa localStorage e sessionStorage
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // Limpa o Cache Storage do PWA
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+        }
+
+        // Remove Service Workers ativos
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                await registration.unregister();
+            }
+        }
+
+        // Apaga bancos IndexedDB (cache do Firebase)
+        if (window.indexedDB && window.indexedDB.databases) {
+            const dbs = await window.indexedDB.databases();
+            for (let db of dbs) {
+                if (db.name) window.indexedDB.deleteDatabase(db.name);
+            }
+        }
+
+        alert("Aplicativo resetado com sucesso!");
+        window.location.href = window.location.origin + window.location.pathname + '?reset=' + Date.now();
+    } catch (error) {
+        console.error("Erro ao resetar o app:", error);
+        alert("Ocorreu um erro ao resetar. Tente limpar os dados manualmente pelo navegador.");
+    }
+};
+
+
+// =================================================================
 // PERSISTÊNCIA DA SESSÃO — sobrevive a F5 / fechar e reabrir o app
 // =================================================================
 function persistSession() {
@@ -91,7 +156,7 @@ function loadPersistedSession() {
 }
 
 // =================================================================
-// ALARME SONORO + NOTIFICAÇÃO quando o descanso termina
+// ALARME SONORO + NOTIFICAÇÃO
 // =================================================================
 function requestNotificationPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -766,7 +831,6 @@ async function finishWorkout() {
     const finishedWorkoutId = currentWorkout.id;
     const finishedLog = sessionLog;
 
-    // CORREÇÃO: Limpa a sessão local IMEDIATAMENTE para evitar travamentos em caso de falha de internet ou virada de dia
     clearPersistedSession();
     currentWorkout = null;
 
@@ -775,7 +839,6 @@ async function finishWorkout() {
         const statusEl = document.getElementById('finish-status');
 
         if (result.ok) {
-            // CORREÇÃO: Após um salvamento bem sucedido, força a tentativa de sincronizar o que estava retido offline
             await trySyncPendingLogs();
             navigate('home');
         } else {
@@ -785,7 +848,7 @@ async function finishWorkout() {
                 statusEl.classList.add('text-red-500', 'font-medium');
             }
             setTimeout(() => {
-                trySyncPendingLogs(); // Tenta sincronizar de novo silenciosamente
+                trySyncPendingLogs(); 
                 navigate('home');
             }, 5000);
         }
@@ -802,6 +865,7 @@ async function renderHistory() {
             <i class="ri-loader-4-line text-4xl text-brand-500 animate-spin"></i>
             <h2 class="text-gray-500 font-medium">Carregando seu histórico...</h2>
         </div>`;
+    
     const history = await getHistoryLogs();
     const pending = getPendingLogs();
 
@@ -841,9 +905,10 @@ async function renderHistory() {
                         </button>
 
                         <h3 class="font-extrabold text-gray-900 pr-16 text-lg">${CUSTOM_WORKOUTS.find(w => w.id === h.workoutId)?.name || 'Treino'}</h3>
+                        
                         <div class="flex items-center gap-2 mt-1.5 mb-5 text-xs font-semibold text-brand-600 bg-brand-50 inline-flex px-2.5 py-1 rounded-lg">
                             <i class="ri-calendar-line"></i>
-                            ${h.date ? new Date(h.date?.toDate()).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Sem data'}
+                            ${formatLogDate(h.date)}
                         </div>
 
                         <div class="space-y-3">
@@ -858,6 +923,10 @@ async function renderHistory() {
                     </div>
                 `).join('')}
             </div>
+            
+            <button onclick="hardResetApp()" class="w-full mt-10 py-3 bg-red-50 text-red-600 rounded-2xl text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors">
+                🧹 Resetar Aplicativo e Limpar Cache Local
+            </button>
         </div>
     `;
 
