@@ -11,7 +11,7 @@ import {
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.8';
+const APP_VERSION = '2.9';
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -396,7 +396,7 @@ function saveConfigToMemory(workout) {
 
         if (nameEl) ex.name = nameEl.value || ex.name;
         if (setsEl) ex.sets = Number(setsEl.value) || ex.sets;
-        if (repsEl) ex.reps = repsEl.value; // string mantida para faixa como "10-15"
+        if (repsEl) ex.reps = repsEl.value;
         if (loadEl) ex.load = Number(loadEl.value) || 0;
         if (restEl) ex.rest = restEl.value;
         if (uniEl) ex.isUnilateral = uniEl.checked;
@@ -513,7 +513,7 @@ function renderConfigure(workoutId) {
     });
 }
 
-// --- TELA DE PLANO DE EVOLUÇÃO ---
+// --- TELA DE PLANO DE EVOLUÇÃO (Com projeção semana a semana) ---
 window.renderEvolution = function(selectedData = null) {
     const workoutsList = typeof CUSTOM_WORKOUTS !== 'undefined' ? CUSTOM_WORKOUTS : [];
     if (workoutsList.length === 0) {
@@ -529,7 +529,7 @@ window.renderEvolution = function(selectedData = null) {
     app.innerHTML = `
         <div class="max-w-md mx-auto space-y-6 pb-24 px-2 pt-4">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-1">Plano de Evolução</h2>
-            <p class="text-xs text-gray-500 mb-6">Diretrizes técnicas, cargas iniciais e periodização oficial da cartilha.</p>
+            <p class="text-xs text-gray-500 mb-6">Projeção estimada de carga, repetições e fases de 1 a 20 semanas.</p>
 
             <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
                 <div>
@@ -570,73 +570,132 @@ window.renderEvolution = function(selectedData = null) {
     }
 };
 
-function renderExerciseEvolutionDetails(exercise) {
+function generateExerciseProjections(exercise) {
     if (exercise.isCardio) {
-        let rows = '';
-        for (let w = 1; w <= 12; w++) {
-            const target = getCardioTarget(w);
-            rows += `
-                <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm text-sm">
-                    <span class="font-bold text-gray-700">Semana ${w}</span>
-                    <div class="text-right">
-                        <span class="text-brand-600 font-extrabold">${target.minutes} min</span>
-                        <span class="text-gray-400 text-xs ml-2">(${target.speed} km/h)</span>
-                    </div>
-                </div>
-            `;
+        let list = [];
+        for (let w = 1; w <= 20; w++) {
+            const t = getCardioTarget(w);
+            list.push({
+                week: w,
+                phase: w <= 2 ? "Adaptação" : w <= 5 ? "Acúmulo" : w === 6 ? "Transição" : w === 7 ? "DELOAD" : w <= 11 ? "Progressão 2" : w === 12 ? "DELOAD" : w <= 16 ? "Progressão 3" : w === 17 ? "DELOAD" : "Bloco Final",
+                reps: `${t.minutes} min`,
+                load: `${t.speed} km/h`,
+                rir: w === 7 || w === 12 || w === 17 ? 4 : 2,
+                isDeload: w === 7 || w === 12 || w === 17
+            });
         }
-        return `
-            <div class="space-y-3">
-                <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Projeção de Cardio (Esteira)</h3>
-                ${rows}
-            </div>
-        `;
-    } else {
-        const phases = [
-            { weeks: "Semanas 1-2", phase: "Adaptação (RIR 3)", rir: 3, strategy: "Foco na execução e técnica. Carga inicial de referência. Reserva de 3 repetições." },
-            { weeks: "Semanas 3-5", phase: "Acúmulo", rir: 2, strategy: "Aumenta as repetições progressivamente até atingires o topo da faixa em todas as séries." },
-            { weeks: "Semana 6", phase: "Transição", rir: 1, strategy: "Primeira progressão de carga oficial assim que o topo da faixa anterior for atingido." },
-            { weeks: "Semana 7", phase: "DELOAD", rir: 4, strategy: "Redução de 30-40% do volume para recuperação articular e muscular." },
-            { weeks: "Semanas 8-11", phase: "Progressão 2", rir: 2, strategy: "Retoma 3 séries de trabalho, aplicando novos incrementos de carga ou repetições." },
-            { weeks: "Semana 12", phase: "DELOAD", rir: 4, strategy: "Segunda semana de descarga programada para evitar platô de rendimento." },
-            { weeks: "Semanas 13-16", phase: "Progressão 3", rir: 2, strategy: "Fase de consolidação avançada da força com manutenção de 3 séries." },
-            { weeks: "Semana 17", phase: "DELOAD", rir: 4, strategy: "Descarga para preparar o bloco final de dezembro." },
-            { weeks: "Semanas 18-20", phase: "Bloco Final", rir: 1, strategy: "Foco total nos exercícios compostos e otimização da composição corporal até o final do ano." }
-        ];
+        return list;
+    }
 
-        return `
-            <div class="space-y-4">
-                <div class="bg-brand-50 border border-brand-100 p-5 rounded-3xl text-sm space-y-2">
-                    <p class="font-bold text-brand-900 text-base">${exercise.name}</p>
-                    <div class="grid grid-cols-2 gap-2 pt-1 text-xs text-gray-700">
-                        <div class="bg-white/80 p-2.5 rounded-xl border border-brand-100">
-                            <span class="block text-[10px] text-gray-400 font-bold uppercase">Carga Inicial</span>
-                            <strong class="text-brand-600 text-sm">${exercise.load} kg</strong> ${exercise.isUnilateral ? '(por lado)' : ''}
+    let parts = String(exercise.reps || "10-15").split('-');
+    let minRep = parseInt(parts[0]) || 10;
+    let maxRep = parseInt(parts[1]) || 15;
+    let currentRep = minRep;
+    let currentLoad = Number(exercise.load) || 4;
+    let increment = currentLoad <= 4 ? 1 : 2;
+
+    let projections = [];
+    let repStep = Math.max(1, Math.floor((maxRep - minRep) / 3));
+
+    for (let w = 1; w <= 20; w++) {
+        let phaseName = "";
+        let rir = 2;
+        let isDeload = false;
+
+        if (w <= 2) { 
+            phaseName = "Adaptação"; 
+            rir = 3; 
+            currentRep = minRep;
+        } else if (w <= 5) { 
+            phaseName = "Acúmulo"; 
+            rir = 2; 
+            currentRep = Math.min(maxRep, minRep + (w - 2) * repStep); 
+        } else if (w === 6) { 
+            phaseName = "Transição"; 
+            rir = 1; 
+            currentLoad += increment; 
+            currentRep = minRep; 
+        } else if (w === 7) { 
+            phaseName = "DELOAD"; 
+            rir = 4; 
+            isDeload = true; 
+        } else if (w <= 11) { 
+            phaseName = "Progressão 2"; 
+            rir = 2; 
+            let subW = w - 7; 
+            currentRep = Math.min(maxRep, minRep + subW * repStep); 
+        } else if (w === 12) { 
+            phaseName = "DELOAD"; 
+            rir = 4; 
+            isDeload = true; 
+        } else if (w <= 16) { 
+            phaseName = "Progressão 3"; 
+            rir = 2; 
+            let subW = w - 12; 
+            if (subW === 1) currentLoad += increment; 
+            currentRep = Math.min(maxRep, minRep + subW * repStep); 
+        } else if (w === 17) { 
+            phaseName = "DELOAD"; 
+            rir = 4; 
+            isDeload = true; 
+        } else { 
+            phaseName = "Bloco Final"; 
+            rir = 1; 
+            let subW = w - 17; 
+            if (subW === 1) currentLoad += increment; 
+            currentRep = Math.min(maxRep, minRep + subW * repStep); 
+        }
+
+        let displayedLoad = isDeload ? (currentLoad * 0.8).toFixed(1) : currentLoad.toFixed(1);
+
+        projections.push({
+            week: w,
+            phase: phaseName,
+            reps: isDeload ? `${minRep} (reps)` : `${currentRep}`,
+            load: `${displayedLoad} kg`,
+            rir: rir,
+            isDeload: isDeload
+        });
+    }
+    return projections;
+}
+
+function renderExerciseEvolutionDetails(exercise) {
+    const projections = generateExerciseProjections(exercise);
+
+    return `
+        <div class="space-y-4">
+            <div class="bg-brand-50 border border-brand-100 p-5 rounded-3xl text-sm space-y-2">
+                <p class="font-bold text-brand-900 text-base">${exercise.name}</p>
+                <div class="grid grid-cols-2 gap-2 pt-1 text-xs text-gray-700">
+                    <div class="bg-white/80 p-2.5 rounded-xl border border-brand-100">
+                        <span class="block text-[10px] text-gray-400 font-bold uppercase">Carga Inicial</span>
+                        <strong class="text-brand-600 text-sm">${exercise.load || 0} kg</strong> ${exercise.isUnilateral ? '(por lado)' : ''}
+                    </div>
+                    <div class="bg-white/80 p-2.5 rounded-xl border border-brand-100">
+                        <span class="block text-[10px] text-gray-400 font-bold uppercase">Séries x Reps</span>
+                        <strong class="text-gray-900 text-sm">${exercise.sets} × ${exercise.reps}</strong>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-600 pt-1">⏱️ Descanso: <strong>${exercise.rest}</strong> | 💡 Dica: <em>${exercise.tip || 'Foco na execução'}</em></p>
+            </div>
+
+            <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Projeção Semana a Semana (20 Semanas)</h3>
+            <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+                ${projections.map(p => `
+                    <div class="flex justify-between items-center bg-white p-3.5 rounded-2xl border ${p.isDeload ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'} shadow-sm text-xs">
+                        <div>
+                            <span class="font-bold text-gray-900">Semana ${p.week}</span>
+                            <span class="ml-2 px-2 py-0.5 rounded-md ${p.isDeload ? 'bg-amber-100 text-amber-700' : 'bg-brand-50 text-brand-600'} font-semibold">${p.phase}</span>
                         </div>
-                        <div class="bg-white/80 p-2.5 rounded-xl border border-brand-100">
-                            <span class="block text-[10px] text-gray-400 font-bold uppercase">Séries x Reps</span>
-                            <strong class="text-gray-900 text-sm">${exercise.sets} × ${exercise.reps}</strong>
+                        <div class="text-right">
+                            <span class="font-extrabold text-gray-900">${p.load}</span> • <span class="text-gray-600">${p.reps} reps</span> <span class="text-gray-400 text-[10px] ml-1">(RIR ${p.rir})</span>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-600 pt-1">⏱️ Descanso: <strong>${exercise.rest}</strong> | 💡 Dica: <em>${exercise.tip || 'Foco na execução'}</em></p>
-                </div>
-
-                <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Plano de Periodização Oficial</h3>
-                <div class="space-y-3">
-                    ${phases.map(p => `
-                        <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-xs font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">${p.weeks}</span>
-                                <span class="text-xs font-bold text-gray-500">Meta RIR: ${p.rir}</span>
-                            </div>
-                            <h4 class="font-bold text-gray-900 text-sm mt-1">${p.phase}</h4>
-                            <p class="text-xs text-gray-500 mt-1 leading-relaxed">${p.strategy}</p>
-                        </div>
-                    `).join('')}
-                </div>
+                `).join('')}
             </div>
-        `;
-    }
+        </div>
+    `;
 }
 
 // --- Inicia (ou retoma) uma sessão de treino COM PROGRESSÃO INTELIGENTE ---
