@@ -11,7 +11,7 @@ import {
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.5';
+const APP_VERSION = '2.6';
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -222,6 +222,7 @@ window.navigate = async function (page, data = null) {
     if (page === 'home') await renderHome();
     if (page === 'configure') renderConfigure(data);
     if (page === 'history') await renderHistory();
+    if (page === 'evolution') renderEvolution(data);
     if (page === 'session') await startWorkoutSession(data);
 };
 
@@ -510,6 +511,107 @@ function renderConfigure(workoutId) {
     });
 }
 
+// --- TELA DE PLANO DE EVOLUÇÃO ---
+function renderEvolution(selectedData = null) {
+    let workoutId = selectedData && selectedData[0] ? selectedData[0] : CUSTOM_WORKOUTS[0].id;
+    let workout = CUSTOM_WORKOUTS.find(w => w.id === workoutId) || CUSTOM_WORKOUTS[0];
+    let exerciseId = selectedData && selectedData[1] ? selectedData[1] : (workout.exercises[0]?.id || '');
+    let exercise = workout.exercises.find(e => e.id === exerciseId) || workout.exercises[0];
+
+    app.innerHTML = `
+        <div class="max-w-md mx-auto space-y-6 pb-24 px-2 pt-4">
+            <h2 class="text-2xl font-extrabold text-gray-900 mb-1">Plano de Evolução</h2>
+            <p class="text-xs text-gray-500 mb-6">Acompanhe a projeção de cargas, repetições e fases do seu ciclo.</p>
+
+            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Selecionar Treino</label>
+                    <select id="evo-w-select" class="w-full bg-gray-50 border border-gray-200 rounded-2xl p-3 text-sm font-bold text-gray-800 outline-none">
+                        ${CUSTOM_WORKOUTS.map(w => `<option value="${w.id}" ${w.id === workout.id ? 'selected' : ''}>${w.name}</option>`).join('')}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Selecionar Exercício</label>
+                    <select id="evo-e-select" class="w-full bg-gray-50 border border-gray-200 rounded-2xl p-3 text-sm font-bold text-gray-800 outline-none">
+                        ${workout.exercises.map(e => `<option value="${e.id}" ${e.id === exercise?.id ? 'selected' : ''}>${e.name}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+
+            ${exercise ? renderExerciseEvolutionDetails(exercise) : '<p class="text-gray-500 text-center">Nenhum exercício selecionado.</p>'}
+        </div>
+    `;
+
+    document.getElementById('evo-w-select').addEventListener('change', (e) => {
+        const newWId = e.target.value;
+        const newW = CUSTOM_WORKOUTS.find(w => w.id === newWId);
+        const firstExId = newW?.exercises[0]?.id || '';
+        renderEvolution([newWId, firstExId]);
+    });
+
+    document.getElementById('evo-e-select').addEventListener('change', (e) => {
+        const newEId = e.target.value;
+        renderEvolution([workout.id, newEId]);
+    });
+}
+
+function renderExerciseEvolutionDetails(exercise) {
+    if (exercise.isCardio) {
+        let rows = '';
+        for (let w = 1; w <= 12; w++) {
+            const target = getCardioTarget(w);
+            rows += `
+                <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm text-sm">
+                    <span class="font-bold text-gray-700">Semana ${w}</span>
+                    <div class="text-right">
+                        <span class="text-brand-600 font-extrabold">${target.minutes} min</span>
+                        <span class="text-gray-400 text-xs ml-2">(${target.speed} km/h)</span>
+                    </div>
+                </div>
+            `;
+        }
+        return `
+            <div class="space-y-3">
+                <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Projeção de Cardio (Esteira)</h3>
+                ${rows}
+            </div>
+        `;
+    } else {
+        const phases = [
+            { weeks: "Semanas 1-2", phase: "Adaptação (RIR 3)", rir: 3, strategy: "Foco na execução, reserve 3 repetições na reserva para consolidar." },
+            { weeks: "Semanas 3-5", phase: "Acúmulo", rir: 2, strategy: "Busque bater a meta de repetições. Mantemos a carga até fechar todas as reps." },
+            { weeks: "Semana 6", phase: "Transição", rir: 1, strategy: "Intensidade alta, aproximação da falha com segurança." },
+            { weeks: "Semana 7", phase: "DELOAD", rir: 4, strategy: "Reduza 30-40% da carga/volume para recuperação articular e muscular." },
+            { weeks: "Semanas 8-11", phase: "Progressão 2", rir: 2, strategy: "Retome a progressão de cargas com base no histórico consolidado." },
+            { weeks: "Semana 12", phase: "DELOAD", rir: 4, strategy: "Redução de volume para evitar platô." }
+        ];
+
+        return `
+            <div class="space-y-3">
+                <div class="bg-brand-50 border border-brand-100 p-5 rounded-3xl text-sm mb-4">
+                    <p class="font-bold text-brand-900 mb-1">Carga Atual: <span class="text-brand-600 text-lg">${exercise.load || 0} kg</span></p>
+                    <p class="text-xs text-gray-600">Meta configurada: <strong>${exercise.sets} séries</strong> de <strong>${exercise.reps} repetições</strong></p>
+                </div>
+
+                <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Plano de Periodização e Intensidade</h3>
+                <div class="space-y-3">
+                    ${phases.map(p => `
+                        <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">${p.weeks}</span>
+                                <span class="text-xs font-bold text-gray-500">Meta RIR: ${p.rir}</span>
+                            </div>
+                            <h4 class="font-bold text-gray-900 text-sm mt-1">${p.phase}</h4>
+                            <p class="text-xs text-gray-500 mt-1 leading-relaxed">${p.strategy}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+}
+
 // --- Inicia (ou retoma) uma sessão de treino COM PROGRESSÃO INTELIGENTE ---
 async function startWorkoutSession(workoutId) {
     requestNotificationPermission();
@@ -538,18 +640,15 @@ async function startWorkoutSession(workoutId) {
             ex.reps = target.minutes;
             ex.load = target.speed;
         } else if (lastSessionOfThisWorkout && lastSessionOfThisWorkout.exercises) {
-            // Procura o último registro deste exercício no histórico
             const lastExLog = lastSessionOfThisWorkout.exercises.find(e => e.exerciseId === ex.id);
             if (lastExLog && lastExLog.log && lastExLog.log.length > 0) {
-                // Calcula a média de reps feitas na última sessão
                 const avgRepsDone = lastExLog.log.reduce((acc, s) => acc + s.reps, 0) / lastExLog.log.length;
                 const targetReps = Number(ex.reps) || 12;
 
                 // SE AINDA NÃO ATINGIU A META DE REPS: Mantém a carga anterior para consolidar
                 if (avgRepsDone < targetReps) {
-                    ex.load = lastExLog.log[0].load; // Trava a carga para focar em bater as repetições
+                    ex.load = lastExLog.log[0].load; 
                 } else {
-                    // SE JÁ BATEU A META: Mantém a carga ou puxa a última bem-sucedida pronta para evoluir
                     ex.load = lastExLog.log[0].load;
                 }
             }
@@ -933,10 +1032,6 @@ async function renderHistory() {
                     </div>
                 `).join('')}
             </div>
-            
-            <button onclick="hardResetApp()" class="w-full mt-10 py-3 bg-red-50 text-red-600 rounded-2xl text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors">
-                🧹 Resetar Aplicativo e Limpar Cache Local
-            </button>
         </div>
     `;
 
