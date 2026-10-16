@@ -11,7 +11,7 @@ import {
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.6';
+const APP_VERSION = '2.7';
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -54,7 +54,7 @@ let sessionLog = [];
 let exerciseLog = [];
 
 let restInterval = null;       
-let transitionInterval = null; 
+let transitionInterval = 0; 
 let restEndTime = null;        
 let transitionEndTime = null;  
 
@@ -222,7 +222,7 @@ window.navigate = async function (page, data = null) {
     if (page === 'home') await renderHome();
     if (page === 'configure') renderConfigure(data);
     if (page === 'history') await renderHistory();
-    if (page === 'evolution') renderEvolution(data);
+    if (page === 'evolution') window.renderEvolution(data);
     if (page === 'session') await startWorkoutSession(data);
 };
 
@@ -512,11 +512,17 @@ function renderConfigure(workoutId) {
 }
 
 // --- TELA DE PLANO DE EVOLUÇÃO ---
-function renderEvolution(selectedData = null) {
-    let workoutId = selectedData && selectedData[0] ? selectedData[0] : CUSTOM_WORKOUTS[0].id;
-    let workout = CUSTOM_WORKOUTS.find(w => w.id === workoutId) || CUSTOM_WORKOUTS[0];
-    let exerciseId = selectedData && selectedData[1] ? selectedData[1] : (workout.exercises[0]?.id || '');
-    let exercise = workout.exercises.find(e => e.id === exerciseId) || workout.exercises[0];
+window.renderEvolution = function(selectedData = null) {
+    const workoutsList = typeof CUSTOM_WORKOUTS !== 'undefined' ? CUSTOM_WORKOUTS : [];
+    if (workoutsList.length === 0) {
+        app.innerHTML = `<div class="p-6 text-center text-gray-500">Nenhum treino cadastrado.</div>`;
+        return;
+    }
+
+    let workoutId = Array.isArray(selectedData) && selectedData[0] ? selectedData[0] : workoutsList[0].id;
+    let workout = workoutsList.find(w => w.id === workoutId) || workoutsList[0];
+    let exerciseId = Array.isArray(selectedData) && selectedData[1] ? selectedData[1] : (workout.exercises?.[0]?.id || '');
+    let exercise = workout.exercises?.find(e => e.id === exerciseId) || workout.exercises?.[0];
 
     app.innerHTML = `
         <div class="max-w-md mx-auto space-y-6 pb-24 px-2 pt-4">
@@ -527,14 +533,14 @@ function renderEvolution(selectedData = null) {
                 <div>
                     <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Selecionar Treino</label>
                     <select id="evo-w-select" class="w-full bg-gray-50 border border-gray-200 rounded-2xl p-3 text-sm font-bold text-gray-800 outline-none">
-                        ${CUSTOM_WORKOUTS.map(w => `<option value="${w.id}" ${w.id === workout.id ? 'selected' : ''}>${w.name}</option>`).join('')}
+                        ${workoutsList.map(w => `<option value="${w.id}" ${w.id === workout.id ? 'selected' : ''}>${w.name}</option>`).join('')}
                     </select>
                 </div>
 
                 <div>
                     <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Selecionar Exercício</label>
                     <select id="evo-e-select" class="w-full bg-gray-50 border border-gray-200 rounded-2xl p-3 text-sm font-bold text-gray-800 outline-none">
-                        ${workout.exercises.map(e => `<option value="${e.id}" ${e.id === exercise?.id ? 'selected' : ''}>${e.name}</option>`).join('')}
+                        ${(workout.exercises || []).map(e => `<option value="${e.id}" ${e.id === exercise?.id ? 'selected' : ''}>${e.name}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -543,18 +549,24 @@ function renderEvolution(selectedData = null) {
         </div>
     `;
 
-    document.getElementById('evo-w-select').addEventListener('change', (e) => {
-        const newWId = e.target.value;
-        const newW = CUSTOM_WORKOUTS.find(w => w.id === newWId);
-        const firstExId = newW?.exercises[0]?.id || '';
-        renderEvolution([newWId, firstExId]);
-    });
+    const wSelect = document.getElementById('evo-w-select');
+    if (wSelect) {
+        wSelect.addEventListener('change', (e) => {
+            const newWId = e.target.value;
+            const newW = workoutsList.find(w => w.id === newWId);
+            const firstExId = newW?.exercises?.[0]?.id || '';
+            window.renderEvolution([newWId, firstExId]);
+        });
+    }
 
-    document.getElementById('evo-e-select').addEventListener('change', (e) => {
-        const newEId = e.target.value;
-        renderEvolution([workout.id, newEId]);
-    });
-}
+    const eSelect = document.getElementById('evo-e-select');
+    if (eSelect) {
+        eSelect.addEventListener('change', (e) => {
+            const newEId = e.target.value;
+            window.renderEvolution([workout.id, newEId]);
+        });
+    }
+};
 
 function renderExerciseEvolutionDetails(exercise) {
     if (exercise.isCardio) {
@@ -645,7 +657,6 @@ async function startWorkoutSession(workoutId) {
                 const avgRepsDone = lastExLog.log.reduce((acc, s) => acc + s.reps, 0) / lastExLog.log.length;
                 const targetReps = Number(ex.reps) || 12;
 
-                // SE AINDA NÃO ATINGIU A META DE REPS: Mantém a carga anterior para consolidar
                 if (avgRepsDone < targetReps) {
                     ex.load = lastExLog.log[0].load; 
                 } else {
