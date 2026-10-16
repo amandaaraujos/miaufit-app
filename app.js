@@ -11,7 +11,7 @@ import {
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.7';
+const APP_VERSION = '2.8';
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -32,7 +32,8 @@ if (currentVersion !== APP_VERSION || !localStorage.getItem('customWorkouts')) {
                     sets: 1,
                     reps: 30,
                     load: 3.5,
-                    rest: 0
+                    rest: 0,
+                    tip: "Intensidade moderada"
                 }
             ]
         });
@@ -49,12 +50,12 @@ if (currentVersion !== APP_VERSION || !localStorage.getItem('customWorkouts')) {
 let currentWorkout = null;
 let currentExerciseIndex = 0;
 let currentSet = 1;
-let currentSide = 'D'; // 'D' ou 'E' — só é usado em exercícios unilaterais
+let currentSide = 'D'; // 'D' ou 'E' — unilateral
 let sessionLog = [];
 let exerciseLog = [];
 
 let restInterval = null;       
-let transitionInterval = 0; 
+let transitionInterval = null; 
 let restEndTime = null;        
 let transitionEndTime = null;  
 
@@ -71,9 +72,9 @@ function formatLogDate(dateVal) {
         if (typeof dateVal.toDate === 'function') {
             dateObj = dateVal.toDate(); // Timestamp do Firestore
         } else if (dateVal.seconds) {
-            dateObj = new Date(dateVal.seconds * 1000); // Formato de segundos do Firestore
+            dateObj = new Date(dateVal.seconds * 1000); // Segundos do Firestore
         } else {
-            dateObj = new Date(dateVal); // Date comum, ISO string ou número
+            dateObj = new Date(dateVal); // Date comum ou ISO string
         }
 
         if (isNaN(dateObj.getTime())) return 'Sem data';
@@ -395,9 +396,9 @@ function saveConfigToMemory(workout) {
 
         if (nameEl) ex.name = nameEl.value || ex.name;
         if (setsEl) ex.sets = Number(setsEl.value) || ex.sets;
-        if (repsEl) ex.reps = Number(repsEl.value) || ex.reps;
+        if (repsEl) ex.reps = repsEl.value; // string mantida para faixa como "10-15"
         if (loadEl) ex.load = Number(loadEl.value) || 0;
-        if (restEl) ex.rest = Number(restEl.value) || ex.rest;
+        if (restEl) ex.rest = restEl.value;
         if (uniEl) ex.isUnilateral = uniEl.checked;
     });
 }
@@ -410,12 +411,13 @@ window.addExercise = function (workoutId) {
 
     workout.exercises.push({
         id: 'novo_' + Date.now(),
-        name: isCardioWorkout ? "Novo Cardio (ex: Bicicleta)" : "Novo exercício",
+        name: isCardioWorkout ? "Novo Cardio" : "Novo exercício",
         isCardio: isCardioWorkout,
         sets: isCardioWorkout ? 1 : 3,
-        reps: isCardioWorkout ? 15 : 12,
+        reps: isCardioWorkout ? 15 : "10-15",
         load: isCardioWorkout ? 3.5 : 0,
-        rest: isCardioWorkout ? 0 : 60
+        rest: isCardioWorkout ? 0 : "90 s",
+        tip: "Boa execução"
     });
     renderConfigure(workoutId);
 };
@@ -459,16 +461,16 @@ function renderConfigure(workoutId) {
                                 <input type="number" id="cfg-sets-${ex.id}" value="${ex.sets}" class="w-full bg-transparent font-black text-gray-900 text-lg outline-none text-center">
                             </div>
                             <div class="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex flex-col items-center">
-                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">${ex.isCardio ? 'Minutos' : 'Reps Meta'}</label>
-                                <input type="number" id="cfg-reps-${ex.id}" value="${ex.reps}" class="w-full bg-transparent font-black text-gray-900 text-lg outline-none text-center">
+                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">Reps (ex: 10-15)</label>
+                                <input type="text" id="cfg-reps-${ex.id}" value="${ex.reps}" class="w-full bg-transparent font-black text-gray-900 text-lg outline-none text-center">
                             </div>
                             <div class="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex flex-col items-center">
                                 <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">${ex.isCardio ? 'km/h' : 'Carga (kg)'}</label>
                                 <input type="number" step="0.1" id="cfg-load-${ex.id}" value="${ex.load || 0}" class="w-full bg-transparent font-black text-brand-600 text-lg outline-none text-center">
                             </div>
                             <div class="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex flex-col items-center">
-                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">Pausa (s)</label>
-                                <input type="number" id="cfg-rest-${ex.id}" value="${ex.rest}" class="w-full bg-transparent font-black text-gray-900 text-lg outline-none text-center">
+                                <label class="text-[10px] text-gray-500 font-bold mb-1 uppercase tracking-wide">Pausa</label>
+                                <input type="text" id="cfg-rest-${ex.id}" value="${ex.rest}" class="w-full bg-transparent font-black text-gray-900 text-sm outline-none text-center">
                             </div>
                         </div>
                         ${!ex.isCardio ? `
@@ -527,7 +529,7 @@ window.renderEvolution = function(selectedData = null) {
     app.innerHTML = `
         <div class="max-w-md mx-auto space-y-6 pb-24 px-2 pt-4">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-1">Plano de Evolução</h2>
-            <p class="text-xs text-gray-500 mb-6">Acompanhe a projeção de cargas, repetições e fases do seu ciclo.</p>
+            <p class="text-xs text-gray-500 mb-6">Diretrizes técnicas, cargas iniciais e periodização oficial da cartilha.</p>
 
             <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
                 <div>
@@ -591,22 +593,35 @@ function renderExerciseEvolutionDetails(exercise) {
         `;
     } else {
         const phases = [
-            { weeks: "Semanas 1-2", phase: "Adaptação (RIR 3)", rir: 3, strategy: "Foco na execução, reserve 3 repetições na reserva para consolidar." },
-            { weeks: "Semanas 3-5", phase: "Acúmulo", rir: 2, strategy: "Busque bater a meta de repetições. Mantemos a carga até fechar todas as reps." },
-            { weeks: "Semana 6", phase: "Transição", rir: 1, strategy: "Intensidade alta, aproximação da falha com segurança." },
-            { weeks: "Semana 7", phase: "DELOAD", rir: 4, strategy: "Reduza 30-40% da carga/volume para recuperação articular e muscular." },
-            { weeks: "Semanas 8-11", phase: "Progressão 2", rir: 2, strategy: "Retome a progressão de cargas com base no histórico consolidado." },
-            { weeks: "Semana 12", phase: "DELOAD", rir: 4, strategy: "Redução de volume para evitar platô." }
+            { weeks: "Semanas 1-2", phase: "Adaptação (RIR 3)", rir: 3, strategy: "Foco na execução e técnica. Carga inicial de referência. Reserva de 3 repetições." },
+            { weeks: "Semanas 3-5", phase: "Acúmulo", rir: 2, strategy: "Aumenta as repetições progressivamente até atingires o topo da faixa em todas as séries." },
+            { weeks: "Semana 6", phase: "Transição", rir: 1, strategy: "Primeira progressão de carga oficial assim que o topo da faixa anterior for atingido." },
+            { weeks: "Semana 7", phase: "DELOAD", rir: 4, strategy: "Redução de 30-40% do volume para recuperação articular e muscular." },
+            { weeks: "Semanas 8-11", phase: "Progressão 2", rir: 2, strategy: "Retoma 3 séries de trabalho, aplicando novos incrementos de carga ou repetições." },
+            { weeks: "Semana 12", phase: "DELOAD", rir: 4, strategy: "Segunda semana de descarga programada para evitar platô de rendimento." },
+            { weeks: "Semanas 13-16", phase: "Progressão 3", rir: 2, strategy: "Fase de consolidação avançada da força com manutenção de 3 séries." },
+            { weeks: "Semana 17", phase: "DELOAD", rir: 4, strategy: "Descarga para preparar o bloco final de dezembro." },
+            { weeks: "Semanas 18-20", phase: "Bloco Final", rir: 1, strategy: "Foco total nos exercícios compostos e otimização da composição corporal até o final do ano." }
         ];
 
         return `
-            <div class="space-y-3">
-                <div class="bg-brand-50 border border-brand-100 p-5 rounded-3xl text-sm mb-4">
-                    <p class="font-bold text-brand-900 mb-1">Carga Atual: <span class="text-brand-600 text-lg">${exercise.load || 0} kg</span></p>
-                    <p class="text-xs text-gray-600">Meta configurada: <strong>${exercise.sets} séries</strong> de <strong>${exercise.reps} repetições</strong></p>
+            <div class="space-y-4">
+                <div class="bg-brand-50 border border-brand-100 p-5 rounded-3xl text-sm space-y-2">
+                    <p class="font-bold text-brand-900 text-base">${exercise.name}</p>
+                    <div class="grid grid-cols-2 gap-2 pt-1 text-xs text-gray-700">
+                        <div class="bg-white/80 p-2.5 rounded-xl border border-brand-100">
+                            <span class="block text-[10px] text-gray-400 font-bold uppercase">Carga Inicial</span>
+                            <strong class="text-brand-600 text-sm">${exercise.load} kg</strong> ${exercise.isUnilateral ? '(por lado)' : ''}
+                        </div>
+                        <div class="bg-white/80 p-2.5 rounded-xl border border-brand-100">
+                            <span class="block text-[10px] text-gray-400 font-bold uppercase">Séries x Reps</span>
+                            <strong class="text-gray-900 text-sm">${exercise.sets} × ${exercise.reps}</strong>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-600 pt-1">⏱️ Descanso: <strong>${exercise.rest}</strong> | 💡 Dica: <em>${exercise.tip || 'Foco na execução'}</em></p>
                 </div>
 
-                <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Plano de Periodização e Intensidade</h3>
+                <h3 class="font-extrabold text-gray-800 text-base mt-6 mb-3">Plano de Periodização Oficial</h3>
                 <div class="space-y-3">
                     ${phases.map(p => `
                         <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
@@ -645,7 +660,6 @@ async function startWorkoutSession(workoutId) {
     const currentWeekInfo = getCurrentWeekInfo(history.length);
     const lastSessionOfThisWorkout = history.find(h => h.workoutId === workoutId);
 
-    // LÓGICA INTELIGENTE DE META E PROGRESSÃO
     currentWorkout.exercises.forEach(ex => {
         if (ex.isCardio) {
             const target = getCardioTarget(currentWeekInfo.week);
@@ -654,14 +668,7 @@ async function startWorkoutSession(workoutId) {
         } else if (lastSessionOfThisWorkout && lastSessionOfThisWorkout.exercises) {
             const lastExLog = lastSessionOfThisWorkout.exercises.find(e => e.exerciseId === ex.id);
             if (lastExLog && lastExLog.log && lastExLog.log.length > 0) {
-                const avgRepsDone = lastExLog.log.reduce((acc, s) => acc + s.reps, 0) / lastExLog.log.length;
-                const targetReps = Number(ex.reps) || 12;
-
-                if (avgRepsDone < targetReps) {
-                    ex.load = lastExLog.log[0].load; 
-                } else {
-                    ex.load = lastExLog.log[0].load;
-                }
+                ex.load = lastExLog.log[0].load;
             }
         }
     });
@@ -726,7 +733,7 @@ function renderExerciseSession() {
                     </div>
                     <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center">
                         <label class="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">${ex.isCardio ? 'Minutos' : 'Repetições'}</label>
-                        <input type="number" id="input-reps" value="${ex.reps}" class="w-full bg-transparent text-4xl font-black text-gray-900 outline-none text-center" placeholder="0">
+                        <input type="number" id="input-reps" value="${parseInt(ex.reps) || 12}" class="w-full bg-transparent text-4xl font-black text-gray-900 outline-none text-center" placeholder="0">
                     </div>
                 </div>
 
@@ -797,7 +804,7 @@ function renderExerciseSession() {
         if (currentSet < ex.sets) {
             currentSet++;
             persistSession();
-            startRest(ex.rest);
+            startRest(90);
         } else {
             sessionLog.push({ exerciseId: ex.id, name: ex.name, log: exerciseLog, isCardio: !!ex.isCardio, isUnilateral: !!ex.isUnilateral });
 
