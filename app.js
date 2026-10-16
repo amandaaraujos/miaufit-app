@@ -11,7 +11,7 @@ import {
 const app = document.getElementById('app-content');
 
 // --- SISTEMA DE VERSIONAMENTO ---
-const APP_VERSION = '2.4';
+const APP_VERSION = '2.5';
 let currentVersion = localStorage.getItem('appVersion');
 
 let CUSTOM_WORKOUTS;
@@ -90,17 +90,14 @@ window.hardResetApp = async function() {
     }
 
     try {
-        // Limpa localStorage e sessionStorage
         localStorage.clear();
         sessionStorage.clear();
 
-        // Limpa o Cache Storage do PWA
         if ('caches' in window) {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
         }
 
-        // Remove Service Workers ativos
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (let registration of registrations) {
@@ -108,7 +105,6 @@ window.hardResetApp = async function() {
             }
         }
 
-        // Apaga bancos IndexedDB (cache do Firebase)
         if (window.indexedDB && window.indexedDB.databases) {
             const dbs = await window.indexedDB.databases();
             for (let db of dbs) {
@@ -124,9 +120,8 @@ window.hardResetApp = async function() {
     }
 };
 
-
 // =================================================================
-// PERSISTÊNCIA DA SESSÃO — sobrevive a F5 / fechar e reabrir o app
+// PERSISTÊNCIA DA SESSÃO
 // =================================================================
 function persistSession() {
     if (!currentWorkout) {
@@ -268,7 +263,7 @@ function restoreSessionFromSaved(saved) {
     renderExerciseSession();
 }
 
-// --- Cálculo da semana com base em Ciclos (Total de treinos no app) ---
+// --- Cálculo da semana com base em Ciclos ---
 function getCurrentWeekInfo(totalWorkouts) {
     const treinosPorCiclo = CUSTOM_WORKOUTS.length;
     const currentWeek = Math.floor(totalWorkouts / treinosPorCiclo) + 1;
@@ -288,7 +283,6 @@ function getCurrentWeekInfo(totalWorkouts) {
     return { week: currentWeek, type: phase, cycleSize: treinosPorCiclo };
 }
 
-// --- Lógica de evolução matemática do Cardio ---
 function getCardioTarget(week) {
     let minutes = 30;
     let speed = 3.5 + ((week - 1) * 0.2);
@@ -494,14 +488,6 @@ function renderConfigure(workoutId) {
                     <i class="ri-save-line text-xl"></i> Salvar alterações
                 </button>
             </div>
-
-            <div class="fixed bottom-[70px] left-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-100 p-4 z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] flex justify-center">
-                <div class="max-w-md w-full">
-                    <button onclick="navigate('session', '${workout.id}')" class="w-full py-4 rounded-2xl font-extrabold text-white bg-brand-600 shadow-lg shadow-brand-300 hover:bg-brand-700 active:scale-[0.98] transition-transform text-base flex items-center justify-center gap-2">
-                        Iniciar treino <i class="ri-play-fill text-xl"></i>
-                    </button>
-                </div>
-            </div>
         </div>
     `;
 
@@ -524,7 +510,7 @@ function renderConfigure(workoutId) {
     });
 }
 
-// --- Inicia (ou retoma) uma sessão de treino ---
+// --- Inicia (ou retoma) uma sessão de treino COM PROGRESSÃO INTELIGENTE ---
 async function startWorkoutSession(workoutId) {
     requestNotificationPermission();
 
@@ -543,12 +529,30 @@ async function startWorkoutSession(workoutId) {
 
     const history = await getHistoryLogs();
     const currentWeekInfo = getCurrentWeekInfo(history.length);
+    const lastSessionOfThisWorkout = history.find(h => h.workoutId === workoutId);
 
+    // LÓGICA INTELIGENTE DE META E PROGRESSÃO
     currentWorkout.exercises.forEach(ex => {
         if (ex.isCardio) {
             const target = getCardioTarget(currentWeekInfo.week);
             ex.reps = target.minutes;
             ex.load = target.speed;
+        } else if (lastSessionOfThisWorkout && lastSessionOfThisWorkout.exercises) {
+            // Procura o último registro deste exercício no histórico
+            const lastExLog = lastSessionOfThisWorkout.exercises.find(e => e.exerciseId === ex.id);
+            if (lastExLog && lastExLog.log && lastExLog.log.length > 0) {
+                // Calcula a média de reps feitas na última sessão
+                const avgRepsDone = lastExLog.log.reduce((acc, s) => acc + s.reps, 0) / lastExLog.log.length;
+                const targetReps = Number(ex.reps) || 12;
+
+                // SE AINDA NÃO ATINGIU A META DE REPS: Mantém a carga anterior para consolidar
+                if (avgRepsDone < targetReps) {
+                    ex.load = lastExLog.log[0].load; // Trava a carga para focar em bater as repetições
+                } else {
+                    // SE JÁ BATEU A META: Mantém a carga ou puxa a última bem-sucedida pronta para evoluir
+                    ex.load = lastExLog.log[0].load;
+                }
+            }
         }
     });
 
@@ -571,6 +575,7 @@ function renderExerciseSession() {
     }
 
     const ex = currentWorkout.exercises[currentExerciseIndex];
+    const nextEx = currentWorkout.exercises[currentExerciseIndex + 1];
     const sideLabel = currentSide === 'D' ? 'Direito' : 'Esquerdo';
 
     app.innerHTML = `
@@ -591,13 +596,19 @@ function renderExerciseSession() {
                 </div>
             </div>
 
+            <!-- PRÓXIMO EXERCÍCIO PREVIEW -->
+            ${nextEx ? `
+            <div class="bg-gray-50 border border-gray-200/60 p-3 rounded-2xl flex items-center justify-between text-xs text-gray-500">
+                <span><i class="ri-skip-forward-line mr-1 text-brand-600 font-bold"></i> Próximo: <strong>${nextEx.name}</strong> (${nextEx.sets}x${nextEx.reps})</span>
+            </div>` : ''}
+
             <div id="rest-timer" class="hidden bg-gradient-to-b from-brand-50 to-white p-8 rounded-3xl text-center border border-brand-100 shadow-sm">
                 <p class="text-xs text-brand-600 font-bold tracking-widest mb-2 uppercase">Descanso</p>
                 <div class="text-6xl font-black text-gray-900 mb-6 font-mono" id="timer-display">00:00</div>
                 <button id="skip-rest-btn" class="w-full py-4 bg-white text-gray-900 rounded-2xl text-base font-bold border border-gray-200 shadow-sm active:scale-[0.98] transition-transform">Pular descanso</button>
             </div>
 
-            <div id="inputs-area" class="space-y-4 mt-8">
+            <div id="inputs-area" class="space-y-4 mt-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center">
                         <label class="text-[11px] text-gray-400 font-bold uppercase tracking-widest mb-2">${ex.isCardio ? 'km/h' : 'Carga (kg)'}</label>
@@ -721,7 +732,7 @@ function renderExerciseSession() {
     }
 }
 
-// --- Descanso ENTRE SÉRIES (dentro do mesmo exercício) ---
+// --- Descanso ENTRE SÉRIES ---
 function startRest(seconds, resume = false) {
     const inputsArea = document.getElementById('inputs-area');
     const restDiv = document.getElementById('rest-timer');
@@ -777,12 +788,11 @@ function formatTime(sec) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// --- Descanso ENTRE EXERCÍCIOS (banner no topo) ---
+// --- Descanso ENTRE EXERCÍCIOS ---
 function iniciarDescansoEntreExercicios(seconds, resume = false) {
     clearInterval(transitionInterval);
 
     const banner = document.getElementById('rest-banner');
-    const displayTempo = document.getElementById('rest-time-left');
 
     if (!resume) {
         transitionEndTime = Date.now() + seconds * 1000;
